@@ -24,25 +24,27 @@ import {
 } from "@/components/ui/sidebar"
 
 const phaseItems = [
-  { key: "setup", label: "Setup", icon: Flag, locked: false },
-  { key: "goals", label: "Goals", icon: Target, locked: true },
-  { key: "analysis", label: "Analysis", icon: Sparkles, locked: true },
-  { key: "compliance", label: "Compliance", icon: Shield, locked: true },
-  { key: "perception", label: "Perception", icon: BadgeCheck, locked: true },
-  { key: "export", label: "Export", icon: FileDown, locked: true },
+  { key: "setup", label: "Setup", icon: Flag, phaseNumber: 1 },
+  { key: "goals", label: "Goals", icon: Target, phaseNumber: 2 },
+  { key: "analysis", label: "Analysis", icon: Sparkles, phaseNumber: 3 },
+  { key: "compliance", label: "Compliance", icon: Shield, phaseNumber: 4 },
+  { key: "perception", label: "Perception", icon: BadgeCheck, phaseNumber: 5 },
+  { key: "export", label: "Export", icon: FileDown, phaseNumber: 6 },
 ]
 
 export function ProjectSidebar({
   projectId,
   projectName,
+  activePhase = "setup",
 }: {
   projectId: string
   projectName?: string
+  activePhase?: string
 }) {
   const pathname = usePathname()
 
-  // We’ll expand this later to support /setup, /goals, etc.
-  const activeKey = "setup"
+  const activeKey = activePhase
+  const activePhaseIndex = phaseItems.findIndex((p) => p.key === activeKey)
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -77,21 +79,25 @@ export function ProjectSidebar({
           Workflow
         </div>
         <SidebarMenu className="mt-1">
-          {phaseItems.map((p) => {
+          {phaseItems.map((p, index) => {
             const isActive = activeKey === p.key
-            const disabled = p.locked
+            const isCompleted = index < activePhaseIndex
+            const isLocked = index > activePhaseIndex
             return (
               <SidebarMenuItem key={p.key}>
                 <SidebarMenuButton
                   asChild
                   isActive={isActive}
-                  aria-disabled={disabled}
-                  className={disabled ? "opacity-70" : undefined}
+                  aria-disabled={isLocked}
+                  className={isLocked ? "opacity-50" : isCompleted ? "opacity-90" : undefined}
                   tooltip={p.label}
                 >
                   <a href={pathname}>
                     <p.icon />
                     <span>{p.label}</span>
+                    {isCompleted && (
+                      <BadgeCheck className="ml-auto size-4 text-green-500" />
+                    )}
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>

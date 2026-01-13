@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-
-import { getProjectById } from "../data"
+import { createClient } from "@/lib/supabase/server"
 
 export default async function ProjectDetailPage({
   params,
@@ -15,8 +14,17 @@ export default async function ProjectDetailPage({
   params: Promise<{ projectId: string }>
 }) {
   const { projectId } = await params
-  const project = getProjectById(projectId)
-  if (!project) notFound()
+  const supabase = await createClient()
+
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", projectId)
+    .single()
+
+  if (error || !project) {
+    notFound()
+  }
 
   return (
     <div className="space-y-4">
