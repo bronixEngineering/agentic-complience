@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/server";
 export async function signIn(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const nextPath = (formData.get("next") as string) || "/dashboard";
 
   // Validation
   if (!email || !password) {
@@ -44,7 +43,7 @@ export async function signIn(formData: FormData) {
   }
 
   revalidatePath("/", "layout");
-  redirect(nextPath);
+  redirect("/dashboard");
 }
 
 export async function signOut() {

@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMemo, useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useTransition } from "react";
 import { ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -18,8 +17,6 @@ import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/actions/auth";
 
 export default function LoginPage() {
-  const search = useSearchParams();
-  const nextPath = useMemo(() => search.get("next") || "/dashboard", [search]);
   const [isPending, startTransition] = useTransition();
 
   const [email, setEmail] = useState("");
@@ -69,7 +66,6 @@ export default function LoginPage() {
       const formData = new FormData();
       formData.append("email", email);
       formData.append("password", password);
-      formData.append("next", nextPath);
 
       const result = await signIn(formData);
       if (result?.error) {
