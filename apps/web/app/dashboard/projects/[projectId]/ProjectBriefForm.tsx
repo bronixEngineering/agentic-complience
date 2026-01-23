@@ -255,9 +255,9 @@ export function ProjectBriefForm({
 
     const fd = new FormData(form);
 
-    // Method selection step: require selection (already enforced by UI),
-    // and for plain mode, require raw text before leaving the step.
+    // Method selection step: just advance to next step
     if (activeStep.key === "method") {
+      setStepIndex((s) => Math.min(steps.length - 1, s + 1));
       return;
     }
 
@@ -353,40 +353,72 @@ export function ProjectBriefForm({
         </div>
       )}
 
-      <div className="rounded-xl border border-muted/60 bg-muted/10 p-4">
-        <div className={activeStep.key === "method" ? "block space-y-3" : "hidden space-y-3"} aria-hidden={activeStep.key !== "method"}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium leading-none">Choose how you want to write the brief</div>
-              <div className="text-muted-foreground mt-1 text-sm">
-                Pick one — you can change it later.
-              </div>
+      <div className="rounded-xl border border-muted/60 bg-muted/10 backdrop-blur-sm p-4 transition-all duration-200">
+        <div className={activeStep.key === "method" ? "block space-y-6" : "hidden space-y-6"} aria-hidden={activeStep.key !== "method"}>
+          <div className="text-center">
+            <div className="text-lg font-semibold leading-none">How would you like to create your brief?</div>
+            <div className="text-muted-foreground mt-2 text-sm">
+              Choose the method that works best for you. You can change this later.
             </div>
-            <Badge variant="outline">Step 1</Badge>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => {
                 setMode("plain");
                 setError(null);
-                setStepIndex(1);
               }}
               className={cn(
-                "hover:bg-muted/30 rounded-xl border p-4 text-left transition-colors",
-                "bg-[radial-gradient(650px_220px_at_20%_0%,oklch(0.72_0.14_240/0.18),transparent_55%)]",
-                mode === "plain" ? "border-primary/40" : "border-muted/60"
+                "group relative overflow-hidden rounded-2xl border p-6 text-left transition-all duration-200 backdrop-blur-sm",
+                "hover:shadow-lg hover:scale-[1.02]",
+                mode === "plain" 
+                  ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20" 
+                  : "border-muted/60 hover:border-primary/40 hover:bg-muted/20"
               )}
             >
-              <div className="flex items-start gap-3">
-                <div className="bg-muted/30 flex size-10 items-center justify-center rounded-xl border border-muted/60">
-                  <span className="text-base" aria-hidden="true">📝</span>
+              <div className="relative z-10 space-y-4">
+                <div className={cn(
+                  "flex size-14 items-center justify-center rounded-2xl border-2 transition-all",
+                  mode === "plain"
+                    ? "border-primary/30 bg-primary/10"
+                    : "border-muted/60 bg-muted/20 group-hover:border-primary/30 group-hover:bg-primary/5"
+                )}>
+                  <FileText className={cn(
+                    "size-7 transition-colors",
+                    mode === "plain" ? "text-primary" : "text-muted-foreground group-hover:text-primary"
+                  )} />
                 </div>
-                <div className="min-w-0">
-                  <div className="font-medium">I have my project brief as plain text</div>
-                  <div className="text-muted-foreground mt-1 text-sm">
-                    Paste it as Markdown. Fastest if you already have a doc.
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "text-base font-semibold transition-colors",
+                      mode === "plain" && "text-primary"
+                    )}>
+                      Plain Text Brief
+                    </div>
+                    {mode === "plain" && (
+                      <Badge variant="default" className="text-xs">Selected</Badge>
+                    )}
+                  </div>
+                  <div className="text-muted-foreground text-sm leading-relaxed">
+                    Perfect if you already have your brief written. Just paste it as Markdown and you're done.
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="bg-muted flex size-5 items-center justify-center rounded">✓</div>
+                    <span>Fastest option</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="bg-muted flex size-5 items-center justify-center rounded">✓</div>
+                    <span>Flexible formatting</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="bg-muted flex size-5 items-center justify-center rounded">✓</div>
+                    <span>Copy from existing docs</span>
                   </div>
                 </div>
               </div>
@@ -397,22 +429,57 @@ export function ProjectBriefForm({
               onClick={() => {
                 setMode("form");
                 setError(null);
-                setStepIndex(1);
               }}
               className={cn(
-                "hover:bg-muted/30 rounded-xl border p-4 text-left transition-colors",
-                "bg-[radial-gradient(650px_220px_at_20%_0%,oklch(0.72_0.14_240/0.22),transparent_55%)]",
-                mode === "form" ? "border-primary/40" : "border-muted/60"
+                "group relative overflow-hidden rounded-2xl border p-6 text-left transition-all duration-200 backdrop-blur-sm",
+                "hover:shadow-lg hover:scale-[1.02]",
+                mode === "form" 
+                  ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20" 
+                  : "border-muted/60 hover:border-primary/40 hover:bg-muted/20"
               )}
             >
-              <div className="flex items-start gap-3">
-                <div className="bg-muted/30 flex size-10 items-center justify-center rounded-xl border border-muted/60">
-                  <MoreHorizontal className="size-5 text-primary" aria-hidden="true" />
+              <div className="relative z-10 space-y-4">
+                <div className={cn(
+                  "flex size-14 items-center justify-center rounded-2xl border-2 transition-all",
+                  mode === "form"
+                    ? "border-primary/30 bg-primary/10"
+                    : "border-muted/60 bg-muted/20 group-hover:border-primary/30 group-hover:bg-primary/5"
+                )}>
+                  <Rocket className={cn(
+                    "size-7 transition-colors",
+                    mode === "form" ? "text-primary" : "text-muted-foreground group-hover:text-primary"
+                  )} />
                 </div>
-                <div className="min-w-0">
-                  <div className="font-medium">I want to fill the brief form</div>
-                  <div className="text-muted-foreground mt-1 text-sm">
-                    Answer structured questions step-by-step.
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className={cn(
+                      "text-base font-semibold transition-colors",
+                      mode === "form" && "text-primary"
+                    )}>
+                      Guided Form
+                    </div>
+                    {mode === "form" && (
+                      <Badge variant="default" className="text-xs">Selected</Badge>
+                    )}
+                  </div>
+                  <div className="text-muted-foreground text-sm leading-relaxed">
+                    Starting from scratch? Answer structured questions step-by-step to build a complete brief.
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="bg-muted flex size-5 items-center justify-center rounded">✓</div>
+                    <span>Structured approach</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="bg-muted flex size-5 items-center justify-center rounded">✓</div>
+                    <span>No information missed</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="bg-muted flex size-5 items-center justify-center rounded">✓</div>
+                    <span>Clear guidance at each step</span>
                   </div>
                 </div>
               </div>
@@ -637,8 +704,8 @@ export function ProjectBriefForm({
 
         <div className="flex items-center gap-2">
           {activeStep.key === "method" ? (
-            <Button type="button" onClick={goNext} disabled>
-              Next
+            <Button type="button" onClick={goNext} disabled={isPending}>
+              Continue with {mode === "plain" ? "Plain Text" : "Guided Form"}
             </Button>
           ) : mode === "plain" ? (
             <Button type="submit" disabled={isPending}>

@@ -25,11 +25,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <Script
-        id="theme-init"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
+      <head>
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
 (function() {
   try {
     var stored = localStorage.getItem('theme');
@@ -41,8 +42,9 @@ export default function RootLayout({
     root.style.colorScheme = theme;
   } catch (e) {}
 })();`,
-        }}
-      />
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

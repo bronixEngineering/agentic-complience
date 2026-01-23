@@ -23,10 +23,12 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { signOut } from "@/app/actions/auth"
+import { useProject } from "@/hooks/use-project"
 
-function breadcrumbForPath(pathname: string) {
+function breadcrumbForPath(pathname: string, projectName?: string | null) {
   if (pathname === "/dashboard") {
     return { parent: "Dashboard", page: "Projects" }
   }
@@ -35,7 +37,10 @@ function breadcrumbForPath(pathname: string) {
   }
   if (pathname.startsWith("/dashboard/projects")) {
     const projectId = pathname.split("/")[3]
-    return { parent: "Dashboard", page: projectId ? `Project ${projectId}` : "Project" }
+    if (projectId && projectName) {
+      return { parent: "Dashboard", page: projectName }
+    }
+    return { parent: "Dashboard", page: projectId ? "Project" : "Projects" }
   }
   return { parent: "Dashboard", page: "Overview" }
 }
@@ -47,9 +52,11 @@ export default function DashboardShell({
 }) {
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()
-  const crumbs = breadcrumbForPath(pathname)
   const isProjectDetail = pathname.startsWith("/dashboard/projects/")
   const projectId = isProjectDetail ? pathname.split("/")[3] : undefined
+  
+  const { projectName, loading: projectLoading } = useProject(projectId)
+  const crumbs = breadcrumbForPath(pathname, projectName)
 
   const handleSignOut = () => {
     startTransition(() => {
@@ -65,7 +72,7 @@ export default function DashboardShell({
         <AppSidebar />
       )}
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b backdrop-blur-xl bg-background/80 transition-all duration-200">
           <div className="flex flex-1 items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator
@@ -93,7 +100,11 @@ export default function DashboardShell({
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
                 <BreadcrumbItem>
-                  <BreadcrumbPage>{crumbs.page}</BreadcrumbPage>
+                  {projectLoading && isProjectDetail ? (
+                    <Skeleton className="h-4 w-32" />
+                  ) : (
+                    <BreadcrumbPage>{crumbs.page}</BreadcrumbPage>
+                  )}
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>

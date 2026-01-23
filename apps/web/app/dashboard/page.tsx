@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Clock,
   ShieldAlert,
+  User,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -22,6 +23,7 @@ type Project = {
   progress_pct: number
   created_at: string
   updated_at: string
+  created_by: string
 }
 
 function formatDate(dateString: string): string {
@@ -38,6 +40,9 @@ function formatDate(dateString: string): string {
 
 export default async function DashboardHome() {
   const supabase = await createClient()
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser()
 
   const { data: projects, error } = await supabase
     .from("projects")
@@ -62,27 +67,27 @@ export default async function DashboardHome() {
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card variant="glass" className="hover:scale-[1.01] transition-all duration-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
             <CardDescription>All your projects</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
             <div className="text-3xl font-semibold tracking-tight">{projectsList.length}</div>
-            <ShieldAlert className="text-primary size-5" />
+            <ShieldAlert className="text-foreground/70 size-5 transition-transform group-hover:scale-110" />
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="glass" className="hover:scale-[1.01] transition-all duration-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">In Review</CardTitle>
             <CardDescription>Active compliance workflows</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-between">
             <div className="text-3xl font-semibold tracking-tight">{inReviewCount}</div>
-            <AlertTriangle className="text-primary size-5" />
+            <AlertTriangle className="text-foreground/70 size-5 transition-transform group-hover:scale-110" />
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="glass" className="hover:scale-[1.01] transition-all duration-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Draft Projects</CardTitle>
             <CardDescription>Projects in setup</CardDescription>
@@ -91,7 +96,7 @@ export default async function DashboardHome() {
             <div className="text-3xl font-semibold tracking-tight">
               {projectsList.filter((p) => p.status === "draft").length}
             </div>
-            <Clock className="text-primary size-5" />
+            <Clock className="text-foreground/70 size-5 transition-transform group-hover:scale-110" />
           </CardContent>
         </Card>
       </div>
@@ -111,7 +116,7 @@ export default async function DashboardHome() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {projectsList.length === 0 ? (
           <div className="col-span-full">
-            <Card>
+            <Card variant="glass">
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <p className="text-muted-foreground mb-4 text-center">
                   No projects yet. Create your first project to get started.
@@ -122,54 +127,83 @@ export default async function DashboardHome() {
           </div>
         ) : (
           projectsList.map((p) => (
-            <Card
-              key={p.id}
-              className="group hover:bg-muted/30 transition-colors"
-            >
-              <div className="flex h-full flex-col">
-                <CardHeader className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <CardTitle className="text-base leading-6">{p.name}</CardTitle>
-                      <div className="text-muted-foreground text-xs">
-                        Phase: {p.active_phase}
+            <Link key={p.id} href={`/dashboard/projects/${p.id}`} className="group">
+              <Card variant="glass" className="h-full transition-all duration-200 hover:scale-[1.02]">
+                <div className="flex h-full flex-col">
+                  <CardHeader className="space-y-3 pb-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 space-y-1">
+                        <CardTitle className="text-lg leading-6 group-hover:text-primary transition-colors">
+                          {p.name}
+                        </CardTitle>
+                        <div className="space-y-1">
+                          <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                            <Clock className="size-3" />
+                            <span>Updated {formatDate(p.updated_at)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <User className="size-3 text-muted-foreground" />
+                            <span className="text-muted-foreground text-xs">
+                              {user && p.created_by === user.id ? (
+                                <span className="font-medium">Created by you</span>
+                              ) : (
+                                <span>Created by team member</span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <StatusBadge status={p.status} />
+                    </div>
+
+                    {/* Active Phase */}
+                    <div className="bg-muted/50 rounded-lg border p-3">
+                      <div className="text-muted-foreground mb-1 text-xs font-medium">
+                        Current Phase
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold capitalize">
+                          {p.active_phase}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {p.progress_pct}% Complete
+                        </Badge>
                       </div>
                     </div>
-                    <StatusBadge status={p.status} />
-                  </div>
 
-                  {/* Progress */}
-                  <div className="space-y-1">
-                    <div className="text-muted-foreground flex items-center justify-between text-xs">
-                      <span>Progress</span>
-                      <span>{p.progress_pct}%</span>
+                    {/* Progress Bar */}
+                    <div className="space-y-2">
+                      <div className="bg-muted h-2.5 overflow-hidden rounded-full">
+                        <div
+                          className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
+                          style={{ width: `${p.progress_pct}%` }}
+                        />
+                      </div>
+                      <div className="text-muted-foreground flex items-center justify-between text-xs">
+                        <span>Overall Progress</span>
+                        <span className="font-medium">{p.progress_pct}%</span>
+                      </div>
                     </div>
-                    <div className="bg-muted h-2 overflow-hidden rounded-full">
-                      <div
-                        className="bg-primary h-full rounded-full transition-all"
-                        style={{ width: `${p.progress_pct}%` }}
-                      />
+                  </CardHeader>
+
+                  <CardContent className="mt-auto pt-0">
+                    <div className="flex items-center justify-between">
+                      <div className="text-muted-foreground text-xs">
+                        Created {formatDate(p.created_at)}
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="group-hover:bg-primary group-hover:text-primary-foreground -mr-2 transition-colors"
+                      >
+                        View Details
+                        <ArrowUpRight className="ml-1.5 size-4" />
+                      </Button>
                     </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="mt-auto space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">Updated {formatDate(p.updated_at)}</Badge>
-                  </div>
-
-                  {/* Action */}
-                  <div className="flex items-center justify-end gap-3">
-                    <Button size="sm" variant="secondary" asChild>
-                      <Link href={`/dashboard/projects/${p.id}`}>
-                        Open
-                        <ArrowUpRight className="ml-2 size-4" />
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </div>
-            </Card>
+                  </CardContent>
+                </div>
+              </Card>
+            </Link>
           ))
         )}
       </div>

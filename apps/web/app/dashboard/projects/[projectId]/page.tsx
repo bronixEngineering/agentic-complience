@@ -31,7 +31,7 @@ export default async function ProjectDetailPage({
         <div className="text-xl font-semibold tracking-tight">{project.name}</div>
       </div>
 
-      <Card>
+      <Card variant="glass">
         <CardHeader>
           <CardTitle>Project Brief</CardTitle>
           <CardDescription>
