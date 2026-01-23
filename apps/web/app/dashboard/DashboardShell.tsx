@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTransition } from "react"
 
@@ -21,6 +23,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { signOut } from "@/app/actions/auth"
 
 function breadcrumbForPath(pathname: string) {
@@ -69,6 +72,20 @@ export default function DashboardShell({
               orientation="vertical"
               className="mr-2 data-[orientation=vertical]:h-4"
             />
+            <Link
+              href="/dashboard"
+              className="hover:bg-muted/30 focus-visible:ring-ring/50 rounded-md p-1 outline-none focus-visible:ring-[3px]"
+              aria-label="Go to dashboard"
+            >
+              <Image
+                src="/logo-transparent-full.png"
+                alt="Factify"
+                width={18}
+                height={18}
+                className="drop-shadow-sm"
+                priority
+              />
+            </Link>
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
@@ -82,7 +99,8 @@ export default function DashboardShell({
             </Breadcrumb>
           </div>
 
-          <div className="px-4">
+          <div className="flex items-center gap-2 px-4">
+            <ThemeToggle />
             <Button
               variant="secondary"
               onClick={handleSignOut}

@@ -2,13 +2,13 @@
 
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
   ArrowLeft,
   BadgeCheck,
   FileDown,
   Flag,
-  Shield,
   Sparkles,
   Target,
 } from "lucide-react"
@@ -27,7 +27,7 @@ const phaseItems = [
   { key: "setup", label: "Setup", icon: Flag, phaseNumber: 1 },
   { key: "goals", label: "Goals", icon: Target, phaseNumber: 2 },
   { key: "analysis", label: "Analysis", icon: Sparkles, phaseNumber: 3 },
-  { key: "compliance", label: "Compliance", icon: Shield, phaseNumber: 4 },
+  { key: "compliance", label: "Compliance", icon: BadgeCheck, phaseNumber: 4 },
   { key: "perception", label: "Perception", icon: BadgeCheck, phaseNumber: 5 },
   { key: "export", label: "Export", icon: FileDown, phaseNumber: 6 },
 ]
@@ -62,7 +62,14 @@ export function ProjectSidebar({
             <SidebarMenuButton size="lg" asChild tooltip={projectName ?? projectId}>
               <Link href={`/dashboard/projects/${projectId}`}>
                 <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Shield className="size-4" />
+                  <Image
+                    src="/logo-transparent-full.png"
+                    alt="Factify"
+                    width={18}
+                    height={18}
+                    className="drop-shadow-sm"
+                    priority
+                  />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">{projectName ?? "Project"}</span>

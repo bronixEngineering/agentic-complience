@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,12 +29,14 @@ import {
 
 export function NavProjects({
   projects,
+  isLoading = false,
 }: {
   projects: {
     name: string
     url: string
     icon: LucideIcon
   }[]
+  isLoading?: boolean
 }) {
   const { isMobile } = useSidebar()
 
@@ -41,6 +44,23 @@ export function NavProjects({
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel>Projects</SidebarGroupLabel>
       <SidebarMenu>
+        {isLoading && (
+          <>
+            <SidebarMenuItem>
+              <div className="flex items-center gap-2 px-2 py-2">
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <div className="flex items-center gap-2 px-2 py-2">
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </SidebarMenuItem>
+          </>
+        )}
+
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild>
@@ -78,6 +98,15 @@ export function NavProjects({
             </DropdownMenu>
           </SidebarMenuItem>
         ))}
+
+        {!isLoading && projects.length === 0 && (
+          <SidebarMenuItem>
+            <div className="text-muted-foreground px-2 py-2 text-sm">
+              No projects yet
+            </div>
+          </SidebarMenuItem>
+        )}
+
         <SidebarMenuItem>
           <SidebarMenuButton>
             <MoreHorizontal />

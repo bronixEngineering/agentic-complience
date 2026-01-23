@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useTransition } from "react";
-import { ShieldCheck } from "lucide-react";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -82,7 +82,14 @@ export default function LoginPage() {
         <div className="relative flex h-full flex-col justify-between p-10">
           <div className="flex items-center gap-2">
             <div className="bg-sidebar-primary text-sidebar-primary-foreground flex size-10 items-center justify-center rounded-2xl shadow-sm">
-              <ShieldCheck className="size-5" />
+              <Image
+                src="/logo-transparent-full.png"
+                alt="Factify"
+                width={22}
+                height={22}
+                className="drop-shadow-sm"
+                priority
+              />
             </div>
             <div className="leading-tight">
               <div className="text-lg font-semibold tracking-tight">
@@ -112,6 +119,18 @@ export default function LoginPage() {
       <div className="flex items-center justify-center bg-background p-6">
         <Card className="w-full max-w-md">
           <CardHeader>
+            <div className="mb-2 flex items-center justify-center">
+              <div className="bg-muted/30 flex size-10 items-center justify-center rounded-2xl border border-muted/60">
+                <Image
+                  src="/logo-transparent-full.png"
+                  alt="Factify"
+                  width={22}
+                  height={22}
+                  className="drop-shadow-sm"
+                  priority
+                />
+              </div>
+            </div>
             <CardTitle>Sign in</CardTitle>
             <CardDescription>
               Enter your email and password to continue
