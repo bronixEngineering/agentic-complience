@@ -4,3 +4,5 @@
  */
 
 export { exampleAgent } from "./example-agent";
+export { creativeGeneratorAgent } from "./creative-generator-agent";
+export { briefEnhancerAgent } from "./brief-enhancer-agent";

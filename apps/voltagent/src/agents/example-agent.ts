@@ -14,7 +14,7 @@ export const exampleAgent = new Agent({
 - Answer questions based on your knowledge and search results
 
 Always be helpful, accurate, and concise in your responses.`,
-  model: openai("gpt-4o-mini"),
+  model: openai("gpt-5-mini"),
   tools: [calculatorTool, webSearchTool],
   memory: sharedMemory,
 });
