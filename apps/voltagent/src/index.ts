@@ -1,6 +1,7 @@
 import { VoltAgent } from "@voltagent/core";
 import { honoServer } from "@voltagent/server-hono";
 import { createPinoLogger } from "@voltagent/logger";
+import { creativeFanoutWorkflow } from "./workflows";
 import {
   briefEnhancerAgent,
   creativeGeneratorAgent,
@@ -10,7 +11,6 @@ import {
   creativeGeneratorPackshotAgent,
   creativeGeneratorPerformanceAgent,
   creativeGeneratorUgcAgent,
-  exampleAgent,
 } from "./agents";
 
 // Create logger (optional but recommended)
@@ -22,7 +22,6 @@ const logger = createPinoLogger({
 // Initialize VoltAgent with your agent(s)
 new VoltAgent({
   agents: {
-    exampleAgent,
     briefEnhancerAgent,
     creativeGeneratorAgent,
     creativeGeneratorPerformanceAgent,
@@ -31,6 +30,9 @@ new VoltAgent({
     creativeGeneratorUgcAgent,
     creativeGeneratorMinimalLuxuryAgent,
     creativeGeneratorBoldTrendAgent,
+  },
+  workflows: {
+    creativeFanoutWorkflow,
   },
   server: honoServer(), // Default port: 3141
   logger,

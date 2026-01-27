@@ -4,3 +4,4 @@
  */
 
 export { exampleWorkflow } from "./example-workflow";
+export { creativeFanoutWorkflow } from "./creative-fanout-workflow";
