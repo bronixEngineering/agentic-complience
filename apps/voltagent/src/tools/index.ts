@@ -4,4 +4,5 @@
  */
 
 export { calculatorTool } from "./calculator";
+export { nanoBananaProTool } from "./nano-banana";
 export { webSearchTool } from "./web-search";

@@ -1,6 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
 import { sharedMemory } from "../memory";
+import { nanoBananaProTool } from "../tools";
 
 /**
  * Creative generator agent
@@ -8,8 +9,8 @@ import { sharedMemory } from "../memory";
  * Goal: Take a user brief and return exactly ONE Nano Banana Pro v2 prompt JSON.
  * IMPORTANT: Output must be valid JSON only (no markdown, no code fences).
  *
- * Note: Nano Banana Pro API call is intentionally NOT implemented here.
- * It will be orchestrated later via a VoltAgent workflow step.
+ * Note: The Nano Banana Pro tool is registered for console access,
+ * but workflow orchestration will decide when to call it.
  */
 export const creativeGeneratorAgent = new Agent({
   name: "creative-generator-agent",
@@ -47,7 +48,7 @@ Fill in fields based on the brief (use sensible defaults when missing):
 - rules: quality + failure prevention (single product, no deformation, no fake readable text, etc.)
 `,
   model: openai("gpt-5-mini"),
-  tools: [],
+  tools: [nanoBananaProTool],
   memory: sharedMemory,
 });
 
