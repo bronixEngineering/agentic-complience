@@ -24,21 +24,23 @@ Return EXACTLY ONE valid JSON object that represents a cleaned, production-ready
 - Use double quotes for all keys/strings. No trailing commas.
 
 ## What a "good enhanced brief" contains
-Your output JSON MUST include these keys:
+Your output JSON MUST include these keys with MEANINGFUL VALUES:
 - brief_type: "product" | "app"
-- product: object (for apps, this is still the "thing" being promoted)
-- goal: object
-- target_audience: object
-- usp: string (one-sentence)
-- offer: object (can be empty object)
-- placements: array of objects (each includes platform + format/aspect_ratio)
-- visual_direction: object
-- must_haves: string[]
-- must_avoid: string[]
-- cta_intent: string
-- references: string[] (generic references only; no competitor brand logos)
+- product: object with at least { "category": "...", "variant": "...", "hero_feature": "..." } - NEVER empty
+- goal: object with at least { "primary": "...", "secondary": "..." } - NEVER empty
+- target_audience: object with at least { "demographics": "...", "psychographics": "..." } - NEVER empty
+- usp: string (one-sentence) - MUST be non-empty
+- offer: object (can be empty object {} if no offer)
+- placements: array of objects (each includes platform + format/aspect_ratio) - at least one placement
+- visual_direction: object with at least { "mood": "...", "palette": "..." } - NEVER empty
+- must_haves: string[] (can be empty array if none)
+- must_avoid: string[] (can be empty array if none)
+- cta_intent: string - MUST be non-empty (e.g., "discover", "purchase", "learn")
+- references: string[] (generic references only; can be empty array)
 - assumptions: string[] (what you assumed because the user didn't specify)
 - questions: string[] (only ask if truly blocking; keep short)
+
+CRITICAL: Empty objects {} or empty strings "" are NOT acceptable for required fields. You MUST infer reasonable values from the input brief.
 
 ### brief_type classification
 - Use "app" if the brief is about an app, SaaS, tool, website, or subscription product.
@@ -57,7 +59,8 @@ Your output JSON MUST include these keys:
   - Instagram Feed (4:5)
   - Instagram Story/Reel (9:16)
 - Prefer minimal, scannable lists for must_haves/must_avoid.
-- Keep everything in English.
+- The user's brief may be in any language (Turkish, English, etc.). Translate and normalize all content to English in your output JSON.
+- If the brief is in a non-English language, translate it accurately while preserving the meaning and intent.
 `,
   model: openai("gpt-5-mini"),
   tools: [],
