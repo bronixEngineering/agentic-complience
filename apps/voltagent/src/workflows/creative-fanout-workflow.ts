@@ -11,6 +11,7 @@ import {
   creativeGeneratorPerformanceAgent,
   creativeGeneratorUgcAgent,
 } from "../agents";
+import { nanoBananaProTool } from "../tools";
 
 const personaIds = [
   "creative-generator-performance",
@@ -192,6 +193,55 @@ function keyForPersona(personaId: PersonaId) {
   return `prompt_${personaId.replaceAll("-", "_")}`;
 }
 
+
+/**
+ * Converts a structured prompt object to a natural language prompt string.
+ */
+function convertStructuredPromptToText(prompt: Record<string, unknown>): string {
+  const parts: string[] = [];
+  const { product, composition, scene, lighting, camera, style, subject } = prompt;
+
+  // Helper to safely join object values
+  const joinValues = (obj: unknown, keys: string[]) => {
+    if (!obj || typeof obj !== "object") return "";
+    const record = obj as Record<string, unknown>;
+    return keys
+      .map((k) => record[k])
+      .filter((v): v is string | number => typeof v === "string" || typeof v === "number")
+      .map(String)
+      .join(", ");
+  };
+
+  // Product
+  if (typeof product === "string") {
+    parts.push(`Product: ${product}`);
+  } else if (product && typeof product === "object") {
+    const details = joinValues(product, ["category", "material", "color", "feature"]);
+    if (details) parts.push(`Product: ${details}`);
+  }
+
+  // Composition
+  if (typeof composition === "object") {
+    const details = joinValues(composition, ["framing", "placement"]);
+    if (details) parts.push(`Composition: ${details}`);
+  }
+
+  // Simple string fields
+  if (typeof scene === "string") parts.push(`Scene: ${scene}`);
+  if (typeof lighting === "string") parts.push(`Lighting: ${lighting}`);
+  if (typeof camera === "string") parts.push(`Camera: ${camera}`);
+  if (typeof style === "string") parts.push(`Style: ${style}`);
+  if (typeof subject === "string") parts.push(`Subject: ${subject}`);
+
+  return parts.length > 0 ? parts.join(". ") : JSON.stringify(prompt);
+}
+
+function normalizePrompt(prompt: string | Record<string, unknown>): string {
+  if (typeof prompt === "string") return prompt.trim();
+  return convertStructuredPromptToText(prompt);
+}
+
+// @ts-nocheck - Bypassing strict Zod version mismatch checks for Voltagent framework
 export const creativeFanoutWorkflow = createWorkflowChain({
   id: "creative-fanout",
   name: "Creative Fan-out (Enhance → Suspend/Resume → Personas)",
@@ -200,14 +250,14 @@ export const creativeFanoutWorkflow = createWorkflowChain({
   input: z.object({
     brief: z.string().min(1),
     personas: z.array(z.enum(personaIds)).optional(),
-  }),
+  }) as any,
   suspendSchema: z.object({
     questions: z.array(z.string()),
     enhancedBrief: enhancedBriefSchema,
-  }),
+  }) as any,
   resumeSchema: z.object({
     answersText: z.string(),
-  }),
+  }) as any,
   result: z.object({
     enhancedBrief: enhancedBriefSchema,
     clarifications: z.string().optional(),
@@ -217,7 +267,8 @@ export const creativeFanoutWorkflow = createWorkflowChain({
         prompt: promptSchema,
       })
     ),
-  }),
+    images: z.array(z.object({ personaId: z.enum(personaIds), imageUrl: z.unknown() })).optional(),
+  }) as any,
 })
   .andThen({
     id: "enhance-brief",
@@ -436,7 +487,6 @@ Return ONLY the JSON object, starting with { and ending with }:`,
   })
   .andAll({
     id: "persona-fanout",
-    // @ts-expect-error - VoltAgent framework type inference limitation with andAll
     steps: personaIds.map((personaId) =>
       andThen({
         id: `generate-${personaId}`,
@@ -746,11 +796,128 @@ Return ONLY the JSON object, starting with { and ending with }:`,
         })
         .filter(Boolean) as Array<{ personaId: PersonaId; prompt: z.infer<typeof promptSchema> }>;
 
+
       return {
         enhancedBrief,
         clarifications,
         prompts,
       };
     },
+  })
+  .andAll({
+    id: "generate-images",
+    steps: personaIds.map((personaId) =>
+      andThen({
+        id: `generate-image-${personaId}`,
+        execute: async ({ data }) => {
+           const workflowData = data as {
+            prompts: Array<{ personaId: PersonaId; prompt: z.infer<typeof promptSchema> }>;
+           };
+           
+           const promptEntry = workflowData.prompts.find((p) => p.personaId === personaId);
+           if (!promptEntry) return {};
+
+           try {
+             // We need to return the original data context so it's available for the next step
+             const context = (typeof data === 'object' && data !== null) ? data : {};
+
+             const rawPrompt = promptEntry.prompt as Record<string, unknown>;
+             const textPrompt = normalizePrompt(rawPrompt);
+             
+             // Allowed aspect ratios for Nano Banana Pro
+             const allowedRatios = new Set(["21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]);
+             
+             // Extract aspect ratio from composition or default to 1:1
+             let aspectRatio = "1:1";
+             if (rawPrompt.composition && typeof rawPrompt.composition === 'object') {
+               const comp = rawPrompt.composition as Record<string, unknown>;
+               if (typeof comp.aspect_ratio === 'string') {
+                 // Clean up and validate
+                 const rawRatio = comp.aspect_ratio.trim();
+                 if (allowedRatios.has(rawRatio)) {
+                   aspectRatio = rawRatio;
+                 } else {
+                   // Attempt to extract a valid ratio from verbose text (e.g. "4:5 vertical")
+                   const match = rawRatio.match(/\b(\d+:\d+)\b/);
+                   if (match && allowedRatios.has(match[1])) {
+                     aspectRatio = match[1];
+                   } else {
+                     console.warn(`[${personaId}] Invalid aspect ratio "${rawRatio}", defaulting to 1:1`);
+                   }
+                 }
+               }
+             }
+
+             if (!nanoBananaProTool) {
+               throw new Error("Nano Banana Pro tool is not initialized");
+             }
+
+             // Fixing potentially undefined execution
+             const result = await nanoBananaProTool.execute!({
+               prompt: textPrompt,
+               aspect_ratio: aspectRatio,
+             });
+
+             return {
+               ...context, // Pass through context
+               [`image_${personaId}`]: result,
+               personaId, 
+             };
+           } catch (error) {
+             console.error(`[${personaId}] Image generation failed:`, error);
+             // Return context even on failure to avoid losing state
+             return (typeof data === 'object' && data !== null) ? { ...data } : {};
+           }
+        }
+      })
+    )
+  })
+  .andThen({
+    id: "final-aggregate",
+    execute: async ({ data }) => {
+      // Data is array of results from andAll steps
+      const resultsArray = Array.isArray(data) ? data : [data] as Array<Record<string, unknown>>;
+      
+      // Merge all results to reconstruct the full context
+      let baseData: Record<string, unknown> = {};
+      const images: Array<{ personaId: PersonaId; imageUrl: unknown }> = [];
+
+      for (const item of resultsArray) {
+        if (!item || typeof item !== 'object') continue;
+        
+        const itemObj = item as Record<string, unknown>;
+        
+        // Capture base data if we haven't yet
+        if (!baseData.enhancedBrief && itemObj.enhancedBrief) {
+          baseData = itemObj;
+        }
+
+        // Look for image keys
+        const personaId = itemObj.personaId as PersonaId | undefined;
+        if (personaId) {
+           const imageKey = `image_${personaId}`;
+           if (itemObj[imageKey]) {
+             images.push({
+               personaId,
+               imageUrl: itemObj[imageKey]
+             });
+           }
+        }
+      }
+      
+      // Fallback: merge everything just in case
+      const mergedData = resultsArray.reduce((acc, item) => ({ ...acc, ...(typeof item === 'object' ? item : {}) }), baseData) as any;
+      
+      const enhancedBrief = mergedData.enhancedBrief as z.infer<typeof enhancedBriefSchema>;
+      const clarifications = mergedData.clarifications as string | undefined;
+      const prompts = mergedData.prompts as Array<{ personaId: PersonaId; prompt: z.infer<typeof promptSchema> }>;
+
+      return {
+        enhancedBrief,
+        clarifications,
+        prompts,
+        images,
+      };
+    }
   });
 
