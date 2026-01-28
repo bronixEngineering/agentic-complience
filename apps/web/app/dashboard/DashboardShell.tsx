@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { type ReactNode } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -35,6 +35,12 @@ function breadcrumbForPath(pathname: string, projectName?: string | null) {
   if (pathname.startsWith("/dashboard/workflow")) {
     return { parent: "Dashboard", page: "Workflow" }
   }
+  if (pathname.startsWith("/dashboard/ads/new")) {
+    return { parent: "Dashboard", page: "Project Canvas" }
+  }
+  if (pathname.startsWith("/dashboard/ads")) {
+    return { parent: "Dashboard", page: "Ad Studio" }
+  }
   if (pathname.startsWith("/dashboard/projects")) {
     const projectId = pathname.split("/")[3]
     if (projectId && projectName) {
@@ -48,7 +54,7 @@ function breadcrumbForPath(pathname: string, projectName?: string | null) {
 export default function DashboardShell({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode
 }) {
   const pathname = usePathname()
   const [isPending, startTransition] = useTransition()

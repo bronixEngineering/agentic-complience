@@ -1,13 +1,13 @@
 "use client"
 
-import * as React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ComponentProps } from "react"
 import Image from "next/image"
 import {
   Frame,
   LayoutDashboard,
   ListChecks,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -33,6 +33,11 @@ const data = {
       isActive: true,
     },
     {
+      title: "Ad Studio",
+      url: "/dashboard/ads",
+      icon: Sparkles,
+    },
+    {
       title: "Workflow",
       url: "/dashboard/workflow",
       icon: ListChecks,
@@ -54,7 +59,7 @@ function displayNameFromUser(user: any) {
   return (name && name.trim()) || (user?.email as string | undefined) || "User"
 }
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const [userInfo, setUserInfo] = useState<{
     name: string
     email: string
