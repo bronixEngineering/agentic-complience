@@ -247,16 +247,8 @@ export const creativeFanoutV2Workflow = createWorkflowChain({
     brief: z.string().min(1),
     personas: z.array(z.enum(personaIds)).optional(),
   }) as any,
-  suspendSchema: z.object({
-    questions: z.array(z.string()),
-    enhancedBrief: enhancedBriefSchema,
-  }) as any,
-  resumeSchema: z.object({
-    answersText: z.string(),
-  }) as any,
   result: z.object({
     enhancedBrief: enhancedBriefSchema,
-    clarifications: z.string().optional(),
     prompts: z.array(
       z.object({
         personaId: z.enum(personaIds),
@@ -331,10 +323,6 @@ REQUIRED OUTPUT STRUCTURE (analyze the brief and fill each field dynamically):
   "assumptions": [
     // List what you assumed because brief didn't specify
     // Minimum 2-3 assumptions
-  ],
-  "questions": [
-    // Only ask if truly blocking for creative generation
-    // Keep short and specific
   ]
 }
 
@@ -399,7 +387,6 @@ Return ONLY the JSON object, starting with { and ending with }:`,
           output.must_avoid = output.must_avoid || [];
           output.references = output.references || [];
           output.assumptions = output.assumptions || [];
-          output.questions = output.questions || [];
           output.offer = output.offer || {};
 
           return { 
@@ -420,36 +407,6 @@ Return ONLY the JSON object, starting with { and ending with }:`,
       throw lastError || new Error("Failed to enhance brief: Unknown error");
     },
   })
-  .andThen({
-    id: "clarification-gate",
-    execute: async ({ data, suspend, resumeData }) => {
-      const questions = data.enhancedBrief.questions ?? [];
-      const answersText =
-        typeof (resumeData as { answersText?: unknown } | undefined)?.answersText === "string"
-          ? (resumeData as { answersText: string }).answersText.trim()
-          : "";
-
-      if (questions.length > 0 && answersText.length === 0) {
-        await suspend("needs_clarification", {
-          questions,
-          enhancedBrief: data.enhancedBrief,
-        });
-      }
-
-      if (answersText.length > 0) {
-        return { 
-          ...data, 
-          clarifications: answersText,
-          personas: data.personas 
-        };
-      }
-
-      return { 
-        ...data,
-        personas: data.personas 
-      };
-    },
-  })
   .andAll({
     id: "fanout-generation",
     steps: personaIds.map((personaId) =>
@@ -459,7 +416,6 @@ Return ONLY the JSON object, starting with { and ending with }:`,
           const workflowData = data as {
             personas?: readonly PersonaId[];
             enhancedBrief: z.infer<typeof enhancedBriefSchema>;
-            clarifications?: string;
           };
           const personas = selectedPersonas(workflowData.personas);
           if (!personas.includes(personaId)) return {};
@@ -471,7 +427,7 @@ Return ONLY the JSON object, starting with { and ending with }:`,
           for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
               const agent = personaAgentById[personaId];
-              const promptContext = buildPersonaPrompt(workflowData.enhancedBrief, workflowData.clarifications);
+              const promptContext = buildPersonaPrompt(workflowData.enhancedBrief, undefined);
               
               const res = await agent.generateText(
                 promptContext,
@@ -528,19 +484,31 @@ Return ONLY the JSON object, starting with { and ending with }:`,
                  }
                  break; // Success
               }
-            } catch (error) {
-               console.error(`[${personaId}] Failed to generate prompt:`, error);
-               if (attempt === maxRetries) return {};
-            }
+// ... (previous code)
+              } catch (error) {
+                 console.error(`[${personaId}] Failed to generate prompt:`, error);
+                 if (attempt >= maxRetries) {
+                     return {
+                         personaId,
+                         error: `Failed to generate prompt: ${String(error)}`
+                     };
+                 }
+              }
           }
 
-          if (!generatedPrompt) return {};
+          if (!generatedPrompt) {
+               return {
+                   personaId,
+                   error: "Failed to generate valid prompt after retries"
+               };
+          }
 
           // --- STEP 2: IMAGE GENERATION ---
           try {
              const rawPrompt = generatedPrompt as Record<string, unknown>;
+             // ... (existing logic) ...
              const textPrompt = normalizePrompt(rawPrompt);
-             
+              
              // Aspect Ratio Logic
              const allowedRatios = new Set(["21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]);
              let aspectRatio = "1:1";
@@ -569,7 +537,6 @@ Return ONLY the JSON object, starting with { and ending with }:`,
                 [keyForPersona(personaId)]: generatedPrompt,
                 [`image_${personaId}`]: imageResult,
                 enhancedBrief: workflowData.enhancedBrief,
-                clarifications: workflowData.clarifications,
                 personas: workflowData.personas,
                 personaId
              };
@@ -580,9 +547,9 @@ Return ONLY the JSON object, starting with { and ending with }:`,
              return {
                 [keyForPersona(personaId)]: generatedPrompt,
                 enhancedBrief: workflowData.enhancedBrief,
-                clarifications: workflowData.clarifications,
                 personas: workflowData.personas,
-                personaId
+                personaId,
+                imageError: String(error)
              };
           }
         } 
@@ -597,24 +564,28 @@ Return ONLY the JSON object, starting with { and ending with }:`,
       const resultsArray = Array.isArray(data) ? data : [data] as Array<Record<string, unknown>>;
 
       let mappedEnhancedBrief: any = null;
-      let mappedClarifications: string | undefined = undefined;
       const prompts: any[] = [];
       const images: any[] = [];
+      const errors: any[] = [];
 
       for (const item of resultsArray) {
         if (!item || typeof item !== 'object') continue;
         const itemObj = item as Record<string, unknown>;
 
+        // Capture explicit errors from steps
+        if (itemObj.error) {
+            errors.push({ personaId: itemObj.personaId, error: itemObj.error });
+            continue;
+        }
+
         // Try to recover shared state
         if (!mappedEnhancedBrief && itemObj.enhancedBrief) {
           mappedEnhancedBrief = itemObj.enhancedBrief;
-          mappedClarifications = itemObj.clarifications as string;
         }
 
-        // Identify which persona this result belongs to
-        // We look for keys like prompt_PERSONAID and image_PERSONAID
-        for (const pid of personaIds) {
-           const pKey = keyForPersona(pid);
+        const pid = itemObj.personaId as string;
+        if (pid) {
+           const pKey = keyForPersona(pid as PersonaId);
            const iKey = `image_${pid}`;
            
            if (itemObj[pKey]) {
@@ -630,16 +601,27 @@ Return ONLY the JSON object, starting with { and ending with }:`,
                imageUrl: itemObj[iKey]
              });
            }
+           
+           if (itemObj.imageError) {
+                errors.push({ personaId: pid, error: `Image gen failed: ${itemObj.imageError}` });
+           }
         }
       }
 
+      if (!mappedEnhancedBrief && errors.length > 0) {
+        // If everything failed but we have errors, throw the first one to make it visible
+        // Or return a partial result with errors if the schema allows
+        // For now, let's throw to bubble up the debug info
+        throw new Error(`All personas failed. First error: ${errors[0].error}`);
+      }
+
       if (!mappedEnhancedBrief) {
-        throw new Error("Could not recover enhancedBrief from workflow results");
+         // Fallback if no enhanced brief found (should imply logic error or total failure without error reporting)
+         throw new Error("Workflow failed: No successful persona execution.");
       }
 
       return {
         enhancedBrief: mappedEnhancedBrief,
-        clarifications: mappedClarifications,
         prompts,
         images
       };
