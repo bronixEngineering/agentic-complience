@@ -15,10 +15,10 @@ import { nanoBananaProTool } from "../tools";
 const personaIds = [
   "creative-generator-performance",
   "creative-generator-artdirector",
-  "creative-generator-packshot",
-  "creative-generator-ugc",
-  "creative-generator-minimal-luxury",
-  "creative-generator-bold-trend",
+  // "creative-generator-packshot",
+  // "creative-generator-ugc",
+  // "creative-generator-minimal-luxury",
+  // "creative-generator-bold-trend",
 ] as const;
 
 type PersonaId = (typeof personaIds)[number];
@@ -180,10 +180,10 @@ function selectedPersonas(input?: readonly PersonaId[]) {
 const personaAgentById: Record<PersonaId, typeof creativeGeneratorPerformanceAgent> = {
   "creative-generator-performance": creativeGeneratorPerformanceAgent,
   "creative-generator-artdirector": creativeGeneratorArtDirectorAgent,
-  "creative-generator-packshot": creativeGeneratorPackshotAgent,
-  "creative-generator-ugc": creativeGeneratorUgcAgent,
-  "creative-generator-minimal-luxury": creativeGeneratorMinimalLuxuryAgent,
-  "creative-generator-bold-trend": creativeGeneratorBoldTrendAgent,
+  // "creative-generator-packshot": creativeGeneratorPackshotAgent,
+  // "creative-generator-ugc": creativeGeneratorUgcAgent,
+  // "creative-generator-minimal-luxury": creativeGeneratorMinimalLuxuryAgent,
+  // "creative-generator-bold-trend": creativeGeneratorBoldTrendAgent,
 };
 
 function keyForPersona(personaId: PersonaId) {
