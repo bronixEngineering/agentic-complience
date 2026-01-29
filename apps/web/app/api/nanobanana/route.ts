@@ -26,7 +26,8 @@ type WorkflowResponse = {
   }
 }
 
-const VOLTAGENT_API_URL = process.env.VOLTAGENT_API_URL || "http://localhost:3141"
+const rawUrl = process.env.VOLTAGENT_API_URL || "http://localhost:3141"
+const VOLTAGENT_API_URL = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`
 
 export async function POST(request: Request) {
   try {
