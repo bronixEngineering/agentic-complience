@@ -454,8 +454,8 @@ Return ONLY the JSON object, starting with { and ending with }:`,
             aspect_ratio?: string;
             enhancedBrief: z.infer<typeof enhancedBriefSchema>;
             clarifications?: string;
-          };const personas = selectedPersonas(workflowData.personas);
-          if (!personas.includes(personaId)) return {};
+          };
+          
 
           // --- STEP 1: PROMPT GENERATION ---
           const maxRetries = 2;
@@ -592,7 +592,6 @@ Return ONLY the JSON object, starting with { and ending with }:`,
              return {
                 [keyForPersona(personaId)]: generatedPrompt,
                 enhancedBrief: workflowData.enhancedBrief,
-                personas: workflowData.personas,
                 personaId,
                 imageError: String(error)
              };

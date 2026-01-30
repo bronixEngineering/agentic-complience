@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +22,31 @@ export default async function ProjectDetailPage({
 
   if (error || !project) {
     notFound()
+  }
+
+  // Check for latest execution status to redirect if needed
+  const { data: latestExecution } = await supabase
+    .from("workflow_executions")
+    .select("id, status, brief_version_id")
+    .eq("project_id", projectId)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  // Redirect to appropriate page based on execution status
+  if (latestExecution?.status === "suspended") {
+    // Check if we have the enhanced brief
+    if (latestExecution.brief_version_id) {
+      const { data: briefVer } = await supabase
+        .from("project_brief_versions")
+        .select("enhanced_brief_json")
+        .eq("id", latestExecution.brief_version_id)
+        .single();
+      
+      if (briefVer?.enhanced_brief_json) {
+        redirect(`/dashboard/projects/${projectId}/approval`);
+      }
+    }
   }
 
   return (

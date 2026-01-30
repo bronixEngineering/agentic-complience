@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { FileText, Globe, Megaphone, MoreHorizontal, Rocket, Users } from "lucide-react";
+import { useRef, useState, useTransition, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { FileText, Globe, Megaphone, MoreHorizontal, Rocket, Users, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +50,6 @@ const PLATFORM_OPTIONS = [
   { value: "LinkedIn", label: "LinkedIn" },
   { value: "X", label: "X" },
   { value: "Website", label: "Website / Landing page" },
-  { value: "Other", label: "Other" },
   { value: "Other", label: "Other" },
 ] as const;
 
@@ -218,10 +218,95 @@ export function ProjectBriefForm({
   projectId: string;
   initialBrief?: Brief | null;
 }) {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [stepIndex, setStepIndex] = useState(0);
+  
+  // Generation loading state
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Workflow State (for tracking during generation)
+  const [executionData, setExecutionData] = useState<{
+      executionId?: string;
+      dbExecutionId?: string;
+      status?: string;
+  } | null>(null);
+  const [pollingMessage, setPollingMessage] = useState<string | null>(null);
+
+  // Polling for workflow status when running
+  const checkStatus = useCallback(async () => {
+    if (!executionData?.executionId) return null;
+    
+    try {
+      const params = new URLSearchParams({
+        voltExecutionId: executionData.executionId,
+        ...(executionData.dbExecutionId && { dbExecutionId: executionData.dbExecutionId }),
+      });
+      
+      const res = await fetch(`/api/nanobanana/status?${params}`);
+      if (!res.ok) return null;
+      
+      return await res.json();
+    } catch (e) {
+      console.error("Status check failed:", e);
+      return null;
+    }
+  }, [executionData?.executionId, executionData?.dbExecutionId]);
+
+  // Poll when status is "running"
+  useEffect(() => {
+    if (executionData?.status !== "running") {
+      setPollingMessage(null);
+      return;
+    }
+
+    setPollingMessage("AI is enhancing your brief...");
+    let pollCount = 0;
+    const maxPolls = 60; // Max 60 polls (2 minutes with 2s interval)
+
+    const pollInterval = setInterval(async () => {
+      pollCount++;
+      
+      if (pollCount > maxPolls) {
+        clearInterval(pollInterval);
+        setPollingMessage(null);
+        setError("Workflow is taking too long. Please refresh and check again.");
+        return;
+      }
+
+      // Update message based on poll count
+      if (pollCount > 10) {
+        setPollingMessage("Still processing... this may take a moment");
+      } else if (pollCount > 5) {
+        setPollingMessage("Enhancing and analyzing your brief...");
+      }
+
+      const statusData = await checkStatus();
+      
+      if (!statusData) return;
+      
+      if (statusData.status === "suspended") {
+        clearInterval(pollInterval);
+        setPollingMessage(null);
+        // Redirect to approval page
+        router.push(`/dashboard/projects/${projectId}/approval`);
+      } else if (statusData.status === "completed") {
+        clearInterval(pollInterval);
+        setPollingMessage(null);
+        // Redirect to results page
+        router.push(`/dashboard/projects/${projectId}/results`);
+      } else if (statusData.status === "failed") {
+        clearInterval(pollInterval);
+        setPollingMessage(null);
+        setError("Workflow failed. Please try again.");
+        setExecutionData(null);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [executionData?.status, checkStatus, router, projectId]);
 
   const brief = initialBrief ?? {};
 
@@ -732,9 +817,122 @@ export function ProjectBriefForm({
               Continue with {mode === "plain" ? "Plain Text" : "Guided Form"}
             </Button>
           ) : mode === "plain" ? (
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving..." : "Save brief"}
-            </Button>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={isPending} variant="secondary">
+                {isPending ? "Saving..." : "Save Draft"}
+              </Button>
+            {/* 
+                Only show Generate button if brief has content (checked via default value for now, 
+                ideally state checks if saved). 
+                For MVP, we assume user saves first, or we can trigger both. 
+                Simpler: Trigger BOTH save and generate? 
+                Or just a separate button "Save & Generate".
+            */}
+              <Button 
+                type="button" 
+                variant="default"
+                disabled={isGenerating || isPending}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-purple-900/20 disabled:opacity-50"
+                onClick={async () => {
+                   // 1. Get current values
+                   const form = formRef.current;
+                   if (!form) return;
+                   const fd = new FormData(form);
+                   const prompt = fd.get("rawBrief") as string;
+                   const ratio = fd.get("aspectRatio") as string;
+
+                   if (!prompt || prompt.length < 10) {
+                       setError("Please enter a brief before generating.");
+                       return;
+                   }
+
+                   // Clear previous state before starting new generation
+                   setError(null);
+                   setIsGenerating(true);
+                   setExecutionData(null);
+                   
+                   try {
+                       // Save first (optional, but good practice)
+                       await updateProjectBrief(projectId, fd);
+
+                       // Call Generation API
+                       const res = await fetch("/api/nanobanana", {
+                           method: "POST",
+                           headers: { "Content-Type": "application/json" },
+                           body: JSON.stringify({
+                               projectId,
+                               prompt,
+                               aspect_ratio: ratio
+                           })
+                       });
+                       
+                       if (!res.ok) {
+                           const errData = await res.json().catch(() => ({}));
+                           throw new Error(errData.error || "Generation failed to start");
+                       }
+                       
+                       const data = await res.json();
+                       console.log("[ProjectBriefForm] Full API Response:", JSON.stringify(data, null, 2));
+                       
+                       // Extract status - normalize to lowercase
+                       let workflowStatus = data.status || "running";
+                       if (typeof workflowStatus === "string") {
+                           workflowStatus = workflowStatus.toLowerCase();
+                       }
+                       
+                       console.log("[ProjectBriefForm] Parsed status:", workflowStatus);
+                       console.log("[ProjectBriefForm] Has enhancedBrief:", !!data.enhancedBrief);
+                       console.log("[ProjectBriefForm] requiresApproval:", data.requiresApproval);
+                       
+                       // Handle immediate status responses
+                       if (workflowStatus === "suspended" && data.enhancedBrief) {
+                           console.log("[ProjectBriefForm] Workflow SUSPENDED - redirecting to approval page");
+                           router.push(`/dashboard/projects/${projectId}/approval`);
+                           return;
+                       } else if (workflowStatus === "completed") {
+                           console.log("[ProjectBriefForm] Workflow COMPLETED - redirecting to results page");
+                           router.push(`/dashboard/projects/${projectId}/results`);
+                           return;
+                       } else if (workflowStatus === "running") {
+                           console.log("[ProjectBriefForm] Workflow RUNNING - starting polling");
+                           // Update state to trigger polling
+                           setExecutionData({
+                               executionId: data.voltExecutionId,
+                               dbExecutionId: data.executionId,
+                               status: workflowStatus,
+                           });
+                       } else {
+                           console.log("[ProjectBriefForm] Unknown status:", workflowStatus);
+                           setExecutionData({
+                               executionId: data.voltExecutionId,
+                               dbExecutionId: data.executionId,
+                               status: workflowStatus,
+                           });
+                       }
+
+                   } catch (e) {
+                       setError("Failed to start AI generation: " + String(e));
+                   } finally {
+                       setIsGenerating(false);
+                   }
+                }}
+              >
+                {isGenerating ? (
+                  <>
+                    <svg className="mr-2 size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Starting AI...
+                  </>
+                ) : (
+                  <>
+                    <Rocket className="mr-2 size-4" />
+                    Save & Generate
+                  </>
+                )}
+              </Button>
+            </div>
           ) : stepIndex < steps.length - 1 ? (
             <Button type="button" onClick={goNext} disabled={isPending}>
               Next
@@ -746,6 +944,41 @@ export function ProjectBriefForm({
           )}
         </div>
       </div>
+
+       {/* Debug: Current execution state */}
+       {executionData && (
+           <div className="mt-4 p-2 rounded bg-muted/50 text-xs font-mono">
+               <div>Status: <span className="text-primary">{executionData.status}</span></div>
+               <div>VoltID: {executionData.executionId || "none"}</div>
+               <div>DBID: {executionData.dbExecutionId || "none"}</div>
+           </div>
+       )}
+
+       {/* Workflow Status Display */}
+       {executionData && executionData.status === "running" && (
+           <div className="mt-8">
+               <div className="rounded-xl border border-blue-500/50 bg-blue-500/5 p-6">
+                   <div className="flex items-center gap-4">
+                       <div className="flex size-12 items-center justify-center rounded-full bg-blue-500/20">
+                           <Loader2 className="size-6 animate-spin text-blue-500" />
+                       </div>
+                       <div>
+                           <h3 className="font-semibold text-blue-500">Workflow Running</h3>
+                           <p className="text-sm text-muted-foreground">
+                               {pollingMessage || "Processing your brief..."}
+                           </p>
+                       </div>
+                   </div>
+                   <div className="mt-4 flex gap-2">
+                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-blue-500/20">
+                           <div className="h-full w-1/3 animate-pulse rounded-full bg-blue-500" 
+                                style={{ animation: "pulse 1.5s ease-in-out infinite, shimmer 2s ease-in-out infinite" }} />
+                       </div>
+                   </div>
+               </div>
+           </div>
+       )}
+
     </form>
   );
 }
