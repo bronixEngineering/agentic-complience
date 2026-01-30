@@ -197,7 +197,7 @@ const METHOD_STEP = {
 const PLAIN_STEP = {
   key: "plain",
   title: "Plain text",
-  subtitle: "Paste Markdown",
+  subtitle: "Paste plain text",
   Icon: FileText,
 } as const;
 
@@ -215,21 +215,20 @@ export function ProjectBriefForm({
 
   const brief = initialBrief ?? {};
 
-  const initialMode: "form" | "plain" =
-    brief.mode === "plain" || (!!brief.raw && !brief.objective) ? "plain" : "form";
+  const initialMode: "form" | "plain" = "plain";
   const [mode, setMode] = useState<"form" | "plain">(initialMode);
 
   const defaultObjective = brief.objective ?? brief.purpose ?? "";
   const defaultTone = brief.brandVoiceTone ?? brief.style ?? "";
   const defaultInsights = brief.insights ?? brief.notes ?? "";
 
-  const defaultPlatforms = brief.channels?.platforms ?? [];
-  const [platforms, setPlatforms] = useState<string[]>(defaultPlatforms);
+  const defaultPlatform = brief.channels?.platforms?.[0] ?? "";
+  const [selectedPlatform, setSelectedPlatform] = useState<string>(defaultPlatform);
   const [platformOther, setPlatformOther] = useState<string>(
     brief.channels?.other ?? ""
   );
 
-  const otherChecked = platforms.includes("Other");
+  const otherChecked = selectedPlatform === "Other";
 
   const steps =
     mode === "plain"
@@ -238,10 +237,8 @@ export function ProjectBriefForm({
 
   const activeStep = steps[stepIndex] ?? steps[0]!;
 
-  const togglePlatform = (value: string) => {
-    setPlatforms((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
-    );
+  const selectPlatform = (value: string) => {
+    setSelectedPlatform(value);
   };
 
   const goNext = () => {
@@ -403,7 +400,7 @@ export function ProjectBriefForm({
                     )}
                   </div>
                   <div className="text-muted-foreground text-sm leading-relaxed">
-                    Perfect if you already have your brief written. Just paste it as Markdown and you're done.
+                    Perfect if you already have your brief written. Just paste it as plain text and you're done.
                   </div>
                 </div>
 
@@ -424,20 +421,14 @@ export function ProjectBriefForm({
               </div>
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMode("form");
-                setError(null);
-              }}
-              className={cn(
-                "group relative overflow-hidden rounded-2xl border p-6 text-left transition-all duration-200 backdrop-blur-sm",
-                "hover:shadow-lg hover:scale-[1.02]",
-                mode === "form" 
-                  ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/20" 
-                  : "border-muted/60 hover:border-primary/40 hover:bg-muted/20"
-              )}
-            >
+              <button
+                type="button"
+                disabled={true}
+                className={cn(
+                  "group relative overflow-hidden rounded-2xl border p-6 text-left transition-all duration-200 backdrop-blur-sm opacity-60 cursor-not-allowed",
+                  "border-muted/60 bg-muted/10"
+                )}
+              >
               <div className="relative z-10 space-y-4">
                 <div className={cn(
                   "flex size-14 items-center justify-center rounded-2xl border-2 transition-all",
@@ -459,9 +450,7 @@ export function ProjectBriefForm({
                     )}>
                       Guided Form
                     </div>
-                    {mode === "form" && (
-                      <Badge variant="default" className="text-xs">Selected</Badge>
-                    )}
+                    <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
                   </div>
                   <div className="text-muted-foreground text-sm leading-relaxed">
                     Starting from scratch? Answer structured questions step-by-step to build a complete brief.
@@ -490,7 +479,7 @@ export function ProjectBriefForm({
         <div className={activeStep.key === "plain" ? "block space-y-4" : "hidden space-y-4"} aria-hidden={activeStep.key !== "plain"}>
           <div className="grid gap-2">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="rawBrief">Brief (Markdown)</Label>
+              <Label htmlFor="rawBrief">Plain Text Brief</Label>
               <Badge variant="outline">Required</Badge>
             </div>
             <Textarea
@@ -655,27 +644,27 @@ export function ProjectBriefForm({
                   key={opt.value}
                   className={cn(
                     "flex items-center gap-2 rounded-md border px-3 py-2 transition-colors",
-                    platforms.includes(opt.value)
-                      ? "border-primary/40 bg-muted/30"
-                      : "border-muted/60 bg-muted/10"
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    name="platforms"
-                    value={opt.value}
-                    checked={platforms.includes(opt.value)}
-                    onChange={() => togglePlatform(opt.value)}
-                    disabled={isPending}
-                    className="h-4 w-4 rounded border border-input bg-background"
-                  />
-                  <PlatformIcon platform={opt.value} />
-                  <span className="text-sm">{opt.label}</span>
-                </label>
-              ))}
-            </div>
+                    selectedPlatform === opt.value
+                  ? "border-primary/40 bg-muted/30"
+                  : "border-muted/60 bg-muted/10"
+              )}
+            >
+              <input
+                type="radio"
+                name="platforms"
+                value={opt.value}
+                checked={selectedPlatform === opt.value}
+                onChange={() => selectPlatform(opt.value)}
+                disabled={isPending}
+                className="h-4 w-4 rounded-full border border-input bg-background"
+              />
+              <PlatformIcon platform={opt.value} />
+              <span className="text-sm">{opt.label}</span>
+            </label>
+          ))}
+        </div>
 
-            {otherChecked && (
+        {otherChecked && (
               <div className="grid gap-2">
                 <Label htmlFor="platformOther">Other platform</Label>
                 <Input

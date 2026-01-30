@@ -61,7 +61,7 @@ export async function createProject(formData: FormData) {
 export async function updateProjectBrief(projectId: string, formData: FormData) {
   const briefMode = ((formData.get("briefMode") as string | null) ?? "form").trim();
 
-  // Plain text (Markdown) path
+  // Plain text path
   if (briefMode === "plain") {
     const raw = ((formData.get("rawBrief") as string | null) ?? "").trim();
     if (!raw) {
