@@ -19,6 +19,7 @@ type BriefChannels = {
 type StructuredBrief = {
   mode?: "form" | "plain";
   raw?: string;
+  aspectRatio?: string;
   background?: string;
   objective?: string;
   targetAudience?: string;
@@ -49,6 +50,15 @@ const PLATFORM_OPTIONS = [
   { value: "X", label: "X" },
   { value: "Website", label: "Website / Landing page" },
   { value: "Other", label: "Other" },
+  { value: "Other", label: "Other" },
+] as const;
+
+const ASPECT_RATIO_OPTIONS = [
+  { value: "16:9", label: "16:9 (Landscape)" },
+  { value: "9:16", label: "9:16 (Vertical)" },
+  { value: "1:1", label: "1:1 (Square)" },
+  { value: "4:3", label: "4:3 (Standard)" },
+  { value: "21:9", label: "21:9 (Ultrawide)" },
 ] as const;
 
 function MetaIcon(props: React.ComponentProps<"svg">) {
@@ -476,8 +486,8 @@ export function ProjectBriefForm({
           </div>
         </div>
 
-        <div className={activeStep.key === "plain" ? "block space-y-4" : "hidden space-y-4"} aria-hidden={activeStep.key !== "plain"}>
-          <div className="grid gap-2">
+          <div className={activeStep.key === "plain" ? "block space-y-4" : "hidden space-y-4"} aria-hidden={activeStep.key !== "plain"}>
+            <div className="grid gap-2">
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="rawBrief">Plain Text Brief</Label>
               <Badge variant="outline">Required</Badge>
@@ -491,6 +501,31 @@ export function ProjectBriefForm({
               disabled={isPending}
               required={mode === "plain"}
             />
+              <div className="grid gap-2">
+              <Label htmlFor="aspectRatio">Aspect Ratio</Label>
+              <div className="relative">
+                <select
+                  id="aspectRatio"
+                  name="aspectRatio"
+                  defaultValue={brief.aspectRatio ?? "16:9"}
+                  disabled={isPending}
+                  className={cn(
+                    "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                  )}
+                >
+                  {ASPECT_RATIO_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
+                  <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

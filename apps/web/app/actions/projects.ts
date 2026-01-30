@@ -63,11 +63,11 @@ export async function updateProjectBrief(projectId: string, formData: FormData) 
 
   // Plain text path
   if (briefMode === "plain") {
+    const aspectRatio = ((formData.get("aspectRatio") as string | null) ?? "16:9").trim();
     const raw = ((formData.get("rawBrief") as string | null) ?? "").trim();
     if (!raw) {
       return { error: "Brief text is required" };
     }
-
     const supabase = await createClient();
     const {
       data: { user },
@@ -94,6 +94,7 @@ export async function updateProjectBrief(projectId: string, formData: FormData) 
       brief: {
         mode: "plain",
         raw,
+        aspectRatio,
       },
     };
 

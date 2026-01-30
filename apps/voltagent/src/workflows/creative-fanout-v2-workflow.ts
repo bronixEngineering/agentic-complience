@@ -245,7 +245,7 @@ export const creativeFanoutV2Workflow = createWorkflowChain({
     "Enhance a messy ad brief, suspend for clarifications if needed, then fan-out to persona creative agents to generate Nano Banana prompt JSONs and immediately generate images.",
   input: z.object({
     brief: z.string().min(1),
-    personas: z.array(z.enum(personaIds)).optional(),
+    aspect_ratio: z.string().default("16:9"),
   }) as any,
   result: z.object({
     enhancedBrief: enhancedBriefSchema,
@@ -256,6 +256,13 @@ export const creativeFanoutV2Workflow = createWorkflowChain({
       })
     ),
     images: z.array(z.object({ personaId: z.enum(personaIds), imageUrl: z.unknown() })).optional(),
+  }) as any,
+  suspendSchema: z.object({
+    enhancedBrief: enhancedBriefSchema,
+  }) as any,
+  resumeSchema: z.object({
+    approved: z.boolean(),
+    feedback: z.string().optional(),
   }) as any,
 })
   .andThen({
@@ -323,6 +330,10 @@ REQUIRED OUTPUT STRUCTURE (analyze the brief and fill each field dynamically):
   "assumptions": [
     // List what you assumed because brief didn't specify
     // Minimum 2-3 assumptions
+  ],
+  "questions": [
+    // Only ask if truly blocking for creative generation
+    // Keep short and specific
   ]
 }
 
@@ -407,6 +418,32 @@ Return ONLY the JSON object, starting with { and ending with }:`,
       throw lastError || new Error("Failed to enhance brief: Unknown error");
     },
   })
+  .andThen({
+    id: "approval-gate",
+    execute: async ({ data, suspend, resumeData }) => {
+      const resume = resumeData as { approved: boolean; feedback?: string } | undefined;
+
+      // If already resumed and approved
+      if (resume?.approved) {
+        return data; 
+      }
+      
+      // If resumed but NOT approved (feedback loop logic would go here, 
+      // but for now we suspend again or proceed if approved)
+      // Since specific looping logic is complex to inject here without deeper refactor,
+      // we assume the external system handles the 're-trigger' if rejected, 
+      // or we just suspend again.
+      // For this implementation: Suspend always unless approved.
+      
+      await suspend("wait-for-feedback", {
+        enhancedBrief: data.enhancedBrief
+      });
+
+      // This return is theoretically unreachable if suspended, 
+      // but if resumed with approved=true, we return data.
+      return data;
+    },
+  })
   .andAll({
     id: "fanout-generation",
     steps: personaIds.map((personaId) =>
@@ -414,10 +451,10 @@ Return ONLY the JSON object, starting with { and ending with }:`,
         id: `pipeline-${personaId}`,
         execute: async ({ data }) => {
           const workflowData = data as {
-            personas?: readonly PersonaId[];
+            aspect_ratio?: string;
             enhancedBrief: z.infer<typeof enhancedBriefSchema>;
-          };
-          const personas = selectedPersonas(workflowData.personas);
+            clarifications?: string;
+          };const personas = selectedPersonas(workflowData.personas);
           if (!personas.includes(personaId)) return {};
 
           // --- STEP 1: PROMPT GENERATION ---
@@ -509,20 +546,28 @@ Return ONLY the JSON object, starting with { and ending with }:`,
              // ... (existing logic) ...
              const textPrompt = normalizePrompt(rawPrompt);
               
-             // Aspect Ratio Logic
+              // Aspect Ratio Logic
              const allowedRatios = new Set(["21:9", "16:9", "3:2", "4:3", "5:4", "1:1", "4:5", "3:4", "2:3", "9:16"]);
              let aspectRatio = "1:1";
-             const comp = (rawPrompt as any).composition;
-             if (comp && typeof comp === 'object') {
-                const rawRatio = comp.aspect_ratio;
-                if (typeof rawRatio === 'string') {
-                   const r = rawRatio.trim();
-                   if (allowedRatios.has(r)) aspectRatio = r;
-                   else {
-                     const match = r.match(/\b(\d+:\d+)\b/);
-                     if (match && allowedRatios.has(match[1])) aspectRatio = match[1];
-                   }
-                }
+             
+             // 1. Prefer workflow input
+             if (workflowData.aspect_ratio && allowedRatios.has(workflowData.aspect_ratio)) {
+                aspectRatio = workflowData.aspect_ratio;
+             } 
+             // 2. Fallback to prompt-derived (if needed, or just stick to input)
+             else {
+                 const comp = (rawPrompt as any).composition;
+                 if (comp && typeof comp === 'object') {
+                    const rawRatio = comp.aspect_ratio;
+                    if (typeof rawRatio === 'string') {
+                       const r = rawRatio.trim();
+                       if (allowedRatios.has(r)) aspectRatio = r;
+                       else {
+                         const match = r.match(/\b(\d+:\d+)\b/);
+                         if (match && allowedRatios.has(match[1])) aspectRatio = match[1];
+                       }
+                    }
+                 }
              }
 
              if (!nanoBananaProTool) throw new Error("Nano Banana Pro tool is not initialized");
@@ -537,7 +582,7 @@ Return ONLY the JSON object, starting with { and ending with }:`,
                 [keyForPersona(personaId)]: generatedPrompt,
                 [`image_${personaId}`]: imageResult,
                 enhancedBrief: workflowData.enhancedBrief,
-                personas: workflowData.personas,
+                aspect_ratio: workflowData.aspect_ratio,
                 personaId
              };
 
