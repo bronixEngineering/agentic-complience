@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  mapVoltAgentEventsToWorkflowSteps,
+  normalizeVoltAgentEvents,
+} from "@/lib/workflow-steps";
 
 // We no longer use @fal-ai/client here directly
 // The workflow on the backend now handles the generation
@@ -157,6 +161,9 @@ export async function POST(request: Request) {
     console.log(`[NanoBananaAPI] Enhanced brief in initial response:`, enhancedBrief ? "YES" : "NO");
     console.log(`[NanoBananaAPI] Full workflow data keys:`, Object.keys(workflowData));
 
+    // Collect execution timeline events for workflow_steps (from details or initial response)
+    let executionEvents: any[] | null = null;
+
     // VoltAgent /execute returns "completed" even when workflow is suspended
     // We need to fetch the actual execution details to get suspend data
     if (voltExecutionId && (!enhancedBrief || status === "completed")) {
@@ -242,9 +249,14 @@ export async function POST(request: Request) {
             
             console.log(`[NanoBananaAPI] Enhanced brief from details:`, enhancedBrief ? "YES" : "NO");
           }
+
+          executionEvents = detailsData.events ?? detailsData.timeline ?? null;
       } else {
         console.log(`[NanoBananaAPI] All execution detail endpoints failed`);
       }
+    }
+    if (executionEvents == null) {
+      executionEvents = workflowData.events ?? workflowData.timeline ?? null;
     }
 
     console.log(`[NanoBananaAPI] Final: status=${status}, hasEnhancedBrief=${!!enhancedBrief}`);
@@ -293,58 +305,62 @@ export async function POST(request: Request) {
     }
     const internalExecutionId = execution?.id;
 
-    // --- LOG WORKFLOW STEPS ---
+    // --- LOG WORKFLOW STEPS (Execution Timeline) ---
     if (internalExecutionId) {
-        const stepsToLog = [];
-        
-        // 1. Start Step
-        stepsToLog.push({
+        const normalizedEvents = Array.isArray(executionEvents)
+          ? normalizeVoltAgentEvents({ events: executionEvents })
+          : [];
+        if (normalizedEvents.length > 0) {
+          // Persist VoltAgent execution timeline to workflow_steps
+          const stepsToLog = mapVoltAgentEventsToWorkflowSteps(internalExecutionId, normalizedEvents);
+          await supabase.from("workflow_steps").delete().eq("execution_id", internalExecutionId);
+          const { error: stepError } = await supabase.from("workflow_steps").insert(stepsToLog);
+          if (stepError) console.error("Failed to log workflow steps (timeline):", stepError);
+        } else {
+          // Fallback: synthetic steps when VoltAgent doesn't return events
+          const stepsToLog = [];
+          stepsToLog.push({
             execution_id: internalExecutionId,
             step_name: "Workflow Initiated",
-            agent_id: "system", // Required by schema
+            agent_id: "system",
             status: "completed",
             started_at: new Date().toISOString(),
             completed_at: new Date().toISOString(),
-            input_payload: { prompt, aspect_ratio: body.aspect_ratio }, // Schema: input_payload
-            output_payload: { voltExecutionId } // Schema: output_payload
-        });
-
-        // 2. Current Status Step
-        if (status === 'suspended') {
-             stepsToLog.push({
-                execution_id: internalExecutionId,
-                step_name: "Brief Enhancement",
-                agent_id: "brief-enhancer-agent",
-                status: "suspended", // It finished the step but paused the workflow? Or is it waiting?
-                // Actually the enhancement is DONE, it's waiting for approval.
-                started_at: new Date().toISOString(),
-                completed_at: new Date().toISOString(),
-                input_payload: { prompt },
-                output_payload: { enhancedBrief }
-             });
-             
-             // Open user review step
-             stepsToLog.push({
-                 execution_id: internalExecutionId,
-                 step_name: "User Approval",
-                 agent_id: "user",
-                 status: "pending",
-                 started_at: new Date().toISOString(),
-             });
-        } else if (status === 'completed') {
-             stepsToLog.push({
-                execution_id: internalExecutionId,
-                step_name: "Creative Generation",
-                agent_id: "fanout-workflow",
-                status: "completed",
-                started_at: new Date().toISOString(),
-                completed_at: new Date().toISOString(),
-                output_payload: { imageCount: workflowData.result?.images?.length || 0 }
-             });
+            input_payload: { prompt, aspect_ratio: body.aspect_ratio },
+            output_payload: { voltExecutionId },
+          });
+          if (status === "suspended") {
+            stepsToLog.push({
+              execution_id: internalExecutionId,
+              step_name: "Brief Enhancement",
+              agent_id: "brief-enhancer-agent",
+              status: "suspended",
+              started_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+              input_payload: { prompt },
+              output_payload: { enhancedBrief },
+            });
+            stepsToLog.push({
+              execution_id: internalExecutionId,
+              step_name: "User Approval",
+              agent_id: "user",
+              status: "pending",
+              started_at: new Date().toISOString(),
+            });
+          } else if (status === "completed") {
+            stepsToLog.push({
+              execution_id: internalExecutionId,
+              step_name: "Creative Generation",
+              agent_id: "fanout-workflow",
+              status: "completed",
+              started_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+              output_payload: { imageCount: workflowData.result?.images?.length || 0 },
+            });
+          }
+          const { error: stepError } = await supabase.from("workflow_steps").insert(stepsToLog);
+          if (stepError) console.error("Failed to log steps:", stepError);
         }
-
-        const { error: stepError } = await supabase.from("workflow_steps").insert(stepsToLog);
-        if (stepError) console.error("Failed to log steps:", stepError);
     }
 
     // 3. Save Results (If Completed)

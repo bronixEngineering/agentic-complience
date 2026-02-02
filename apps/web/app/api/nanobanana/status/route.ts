@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import {
+  mapVoltAgentEventsToWorkflowSteps,
+  normalizeVoltAgentEvents,
+} from "@/lib/workflow-steps";
 
 const rawUrl = process.env.VOLTAGENT_API_URL || "http://localhost:3141";
 const VOLTAGENT_API_URL = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
@@ -282,6 +286,18 @@ export async function GET(request: Request) {
             .update({ enhanced_brief_json: enhancedBrief })
             .eq("id", execData.brief_version_id);
         }
+      }
+
+      // Sync execution timeline to workflow_steps when VoltAgent returns events
+      const rawEvents = workflowData.events ?? workflowData.timeline;
+      const normalizedEvents = Array.isArray(rawEvents)
+        ? normalizeVoltAgentEvents({ events: rawEvents })
+        : [];
+      if (normalizedEvents.length > 0) {
+        const stepsToLog = mapVoltAgentEventsToWorkflowSteps(dbExecutionId, normalizedEvents);
+        await supabase.from("workflow_steps").delete().eq("execution_id", dbExecutionId);
+        const { error: stepError } = await supabase.from("workflow_steps").insert(stepsToLog);
+        if (stepError) console.error("[StatusAPI] Failed to sync workflow steps:", stepError);
       }
     }
 
