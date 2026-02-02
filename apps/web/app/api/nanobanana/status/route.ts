@@ -56,12 +56,15 @@ export async function GET(request: Request) {
           if (latestExec.status === "completed") {
             const { data: imgData } = await supabase
               .from("project_content")
-              .select("content_data")
+              .select("id, content_data")
               .eq("execution_id", latestExec.id)
               .eq("content_type", "generated_image");
             
             if (imgData) {
-              images = imgData.map(r => r.content_data);
+              images = imgData.map(r => ({
+                id: r.id,
+                ...(typeof r.content_data === 'string' ? JSON.parse(r.content_data) : r.content_data)
+              }));
             }
           }
           
@@ -82,7 +85,7 @@ export async function GET(request: Request) {
           // First, check if images already exist (workflow might have completed but DB status not updated)
           const { data: imgData } = await supabase
             .from("project_content")
-            .select("content_data")
+            .select("id, content_data")
             .eq("execution_id", latestExec.id)
             .eq("content_type", "generated_image");
           
@@ -91,7 +94,10 @@ export async function GET(request: Request) {
             console.log(`[StatusAPI] Found ${imgData.length} images for execution marked as suspended - treating as completed`);
             return NextResponse.json({
               status: "completed", // Override to completed since we have images
-              images: imgData.map(r => r.content_data),
+              images: imgData.map(r => ({
+                id: r.id,
+                ...(typeof r.content_data === 'string' ? JSON.parse(r.content_data) : r.content_data)
+              })),
               requiresApproval: false,
               executionId: latestExec.id,
               voltExecutionId: latestExec.volt_execution_id,

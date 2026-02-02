@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, Check } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, Check, Paintbrush } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface ImageData {
+  id?: string;
   url: string;
   file_name?: string;
   content_type?: string;
@@ -22,6 +24,7 @@ export default function ResultsPage() {
   const projectId = params.projectId as string;
 
   const [images, setImages] = useState<ImageData[]>([]);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +69,10 @@ export default function ResultsPage() {
 
     fetchResults();
   }, [projectId, router]);
+
+  const handleEdit = (imageId: string) => {
+    router.push(`/dashboard/projects/${projectId}/edit-image/${imageId}`);
+  };
 
   const handleDownload = async (imageUrl: string, fileName: string) => {
     try {
@@ -161,43 +168,83 @@ export default function ResultsPage() {
 
       {/* Image Gallery */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {images.map((image, index) => (
-          <Card key={index} className="overflow-hidden">
-            <div className="relative aspect-[4/5] bg-muted">
-              <Image
-                src={image.url}
-                alt={`Generated image ${index + 1}`}
-                fill
-                className="object-cover"
-                unoptimized // External URLs need this
-              />
-            </div>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  {image.persona && (
-                    <span className="capitalize">{image.persona.replace(/-/g, " ")}</span>
-                  )}
-                  {!image.persona && <span>Image {index + 1}</span>}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDownload(image.url, image.file_name || `image-${index + 1}.png`)}
-                  >
-                    <Download className="size-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" asChild>
-                    <a href={image.url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="size-4" />
-                    </a>
-                  </Button>
-                </div>
+        {images.map((image, index) => {
+          const isSelected = image.id === selectedImageId;
+          
+          return (
+            <Card 
+              key={index} 
+              className={cn(
+                "overflow-hidden transition-all duration-200 cursor-pointer group",
+                isSelected ? "ring-2 ring-primary border-primary" : "hover:border-primary/50"
+              )}
+              onClick={() => image.id && setSelectedImageId(image.id)}
+            >
+              <div className="relative aspect-[4/5] bg-muted">
+                <Image
+                  src={image.url}
+                  alt={`Generated image ${index + 1}`}
+                  fill
+                  className="object-cover"
+                  unoptimized // External URLs need this
+                />
+                {image.id && (
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(image.id!);
+                      }}
+                    >
+                      <Paintbrush className="mr-2 size-4" />
+                      Edit This Image
+                    </Button>
+                  </div>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        ))}
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    {image.persona && (
+                      <span className="capitalize">{image.persona.replace(/-/g, " ")}</span>
+                    )}
+                    {!image.persona && <span>Image {index + 1}</span>}
+                  </div>
+                  <div className="flex gap-2">
+                    {image.id && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(image.id!);
+                        }}
+                        title="Edit Image"
+                      >
+                        <Paintbrush className="size-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownload(image.url, image.file_name || `image-${index + 1}.png`);
+                      }}
+                    >
+                      <Download className="size-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" asChild onClick={(e) => e.stopPropagation()}>
+                      <a href={image.url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="size-4" />
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

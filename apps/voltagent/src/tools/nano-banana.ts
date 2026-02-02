@@ -75,6 +75,7 @@ export const nanoBananaProTool = createTool({
         input: {
           prompt,
           aspect_ratio: aspectRatio as AspectRatio,
+          num_images: 1, // Force exactly 1 image per call
         },
       });
 

@@ -6,3 +6,5 @@
 export { exampleWorkflow } from "./example-workflow";
 export { creativeFanoutWorkflow } from "./creative-fanout-workflow";
 export { creativeFanoutV2Workflow } from "./creative-fanout-v2-workflow";
+export { imageEditingWorkflow } from "./image-editing-workflow";
+

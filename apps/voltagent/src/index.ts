@@ -1,7 +1,7 @@
 import { VoltAgent } from "@voltagent/core";
 import { honoServer } from "@voltagent/server-hono";
 import { createPinoLogger } from "@voltagent/logger";
-import { creativeFanoutWorkflow, creativeFanoutV2Workflow } from "./workflows";
+import { creativeFanoutWorkflow, creativeFanoutV2Workflow, imageEditingWorkflow } from "./workflows";
 import {
   briefEnhancerAgent,
   creativeGeneratorAgent,
@@ -34,6 +34,7 @@ new VoltAgent({
   workflows: {
     creativeFanoutWorkflow,
     creativeFanoutV2Workflow,
+    imageEditingWorkflow,
   },
   server: honoServer(), // Default port: 3141
   logger,
