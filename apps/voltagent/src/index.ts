@@ -11,6 +11,14 @@ import {
   creativeGeneratorPackshotAgent,
   creativeGeneratorPerformanceAgent,
   creativeGeneratorUgcAgent,
+  complianceSupervisorAgent,
+  imageToTextAgent,
+  hiveRiskAgent,
+  historicalComplianceAgent,
+  tavilySearchAgent,
+  claimsCheckAgent,
+  platformPolicyAgent,
+  accessibilityAgent,
 } from "./agents";
 
 // Create logger (optional but recommended)
@@ -30,6 +38,14 @@ new VoltAgent({
     creativeGeneratorUgcAgent,
     creativeGeneratorMinimalLuxuryAgent,
     creativeGeneratorBoldTrendAgent,
+    complianceSupervisorAgent,
+    imageToTextAgent,
+    hiveRiskAgent,
+    historicalComplianceAgent,
+    tavilySearchAgent,
+    claimsCheckAgent,
+    platformPolicyAgent,
+    accessibilityAgent,
   },
   workflows: {
     creativeFanoutWorkflow,
