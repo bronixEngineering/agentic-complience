@@ -52,6 +52,6 @@ new VoltAgent({
     creativeFanoutV2Workflow,
     imageEditingWorkflow,
   },
-  server: honoServer(), // Default port: 3141
+  server: honoServer(),
   logger,
 });
