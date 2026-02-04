@@ -53,7 +53,7 @@ export default async function ProjectDetailPage({
     <div className="space-y-4">
       <div>
         <div className="text-muted-foreground text-sm">Project</div>
-        <div className="text-xl font-semibold tracking-tight">{project.name}</div>
+        <div className="text-base font-semibold tracking-tight">{project.name}</div>
       </div>
 
       <Card variant="glass">

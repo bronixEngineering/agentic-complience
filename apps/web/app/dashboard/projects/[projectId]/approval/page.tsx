@@ -132,7 +132,7 @@ export default function ApprovalPage() {
               Back to Brief
             </Link>
           </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">Review Enhanced Brief</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Review Enhanced Brief</h1>
           <p className="text-sm text-muted-foreground">
             Review the AI-enhanced brief and approve to generate creative assets.
           </p>
@@ -141,6 +141,7 @@ export default function ApprovalPage() {
 
       {/* Approval Component */}
       <ApprovalComponent
+        projectId={projectId}
         executionId={executionData.executionId}
         dbExecutionId={executionData.dbExecutionId}
         enhancedBrief={executionData.enhancedBrief}

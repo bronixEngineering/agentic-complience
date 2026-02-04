@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, Check, Paintbrush } from "lucide-react";
+import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, Check, Paintbrush, X, Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,7 @@ interface ImageData {
   file_name?: string;
   content_type?: string;
   persona?: string;
+  aspect_ratio?: string;
 }
 
 export default function ResultsPage() {
@@ -27,8 +28,13 @@ export default function ResultsPage() {
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<ImageData | null>(null);
+  const [isGenerating, setIsGenerating] = useState(true); // Start as true for immediate loading UI
+  const [generationMessage, setGenerationMessage] = useState<string>("Preparing your images...");
 
   useEffect(() => {
+    // Single fetch on mount - no continuous polling
+    // Approval page handles waiting for workflow completion
     async function fetchResults() {
       try {
         const res = await fetch(`/api/nanobanana/status?projectId=${projectId}`);
@@ -37,32 +43,51 @@ export default function ResultsPage() {
         }
         const data = await res.json();
 
-        // Check for images first - if we have images, show them regardless of reported status
-        // This handles race conditions where DB status hasn't updated yet
+        // Check for images
         if (data.images && data.images.length > 0) {
           setImages(data.images);
-        } else if (data.status === "completed") {
-          // Completed but no images - show message
+          setIsGenerating(false);
+          setIsLoading(false);
+          return;
+        }
+
+        // Handle different statuses
+        if (data.status === "completed") {
           setError("Generation completed but no images were produced.");
-        } else if (data.status === "suspended") {
-          // Still needs approval, redirect to approval page
+          setIsGenerating(false);
+          setIsLoading(false);
+          return;
+        } 
+        
+        if (data.status === "suspended") {
+          // Redirect to approval page
           router.replace(`/dashboard/projects/${projectId}/approval`);
           return;
-        } else if (data.status === "running") {
-          // Still running, stay on page and poll
-          setError("Generation is still in progress. Please wait...");
-        } else if (data.status === "none") {
-          // No execution, redirect to brief page
+        } 
+        
+        if (data.status === "running") {
+          // Still running - shouldn't happen if approval page waited properly
+          // Show loading and do one retry
+          setIsGenerating(true);
+          setIsLoading(false);
+          setGenerationMessage("Finishing up...");
+          return;
+        } 
+        
+        if (data.status === "none") {
           router.replace(`/dashboard/projects/${projectId}`);
           return;
-        } else {
-          // Unknown state, show error
-          setError("Unable to load results. Please try refreshing.");
         }
+
+        // Unknown state
+        setError("Unable to load results. Please try refreshing.");
+        setIsGenerating(false);
+        setIsLoading(false);
+
       } catch (err) {
         console.error("Error fetching results:", err);
         setError("Failed to load results. Please try again.");
-      } finally {
+        setIsGenerating(false);
         setIsLoading(false);
       }
     }
@@ -90,6 +115,42 @@ export default function ResultsPage() {
       console.error("Download failed:", err);
     }
   };
+
+  // Show generating UI if actively generating (priority over isLoading)
+  if (isGenerating) {
+    return (
+      <div className="space-y-6">
+        <div className="flex min-h-[500px] items-center justify-center">
+          <div className="flex flex-col items-center gap-6 max-w-md text-center">
+            <div className="relative">
+              <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+              <div className="relative flex size-20 items-center justify-center rounded-full bg-primary/10">
+                <Loader2 className="size-10 animate-spin text-primary" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold">Creating Your Images</h2>
+              <p className="text-sm text-muted-foreground">{generationMessage}</p>
+            </div>
+            <div className="w-full max-w-xs">
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div 
+                  className="h-full animate-pulse rounded-full bg-gradient-to-r from-primary to-purple-600" 
+                  style={{ 
+                    width: "100%",
+                    animation: "pulse 1.5s ease-in-out infinite, shimmer 2s ease-in-out infinite"
+                  }} 
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This usually takes 30-60 seconds
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -132,7 +193,7 @@ export default function ResultsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* <div className="flex items-center justify-between">
         <div>
           <Button variant="ghost" size="sm" asChild className="mb-2">
             <Link href={`/dashboard/projects/${projectId}`}>
@@ -140,7 +201,7 @@ export default function ResultsPage() {
               Back to Brief
             </Link>
           </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">Generated Images</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Generated Images</h1>
           <p className="text-sm text-muted-foreground">
             Your creative assets have been generated successfully.
           </p>
@@ -149,22 +210,24 @@ export default function ResultsPage() {
           <RefreshCw className="mr-2 size-4" />
           Generate New
         </Button>
-      </div>
+      </div> */}
 
-      {/* Success Banner */}
-      <Card className="border-green-500/50 bg-green-500/5">
-        <CardContent className="flex items-center gap-3 py-4">
-          <div className="flex size-8 items-center justify-center rounded-full bg-green-500/20">
-            <Check className="size-4 text-green-500" />
-          </div>
-          <div>
-            <p className="font-medium text-green-500">Generation Complete</p>
-            <p className="text-sm text-muted-foreground">
-              {images.length} image{images.length !== 1 ? "s" : ""} generated successfully
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Success Notification - Right Side */}
+      <div className="flex justify-end">
+        <Card className="border-green-500/50 bg-green-500/5 shadow-sm max-w-xs">
+          <CardContent className="flex items-center gap-2 py-3 px-4">
+            <div className="flex size-6 items-center justify-center rounded-full bg-green-500/20">
+              <Check className="size-3.5 text-green-500" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-green-500">Generation Completed</p>
+              <p className="text-xs text-muted-foreground">
+                {images.length} image{images.length !== 1 ? "s" : ""} generated successfully
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Image Gallery */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -175,21 +238,28 @@ export default function ResultsPage() {
             <Card 
               key={index} 
               className={cn(
-                "overflow-hidden transition-all duration-200 cursor-pointer group",
+                "overflow-hidden transition-all duration-200 group",
                 isSelected ? "ring-2 ring-primary border-primary" : "hover:border-primary/50"
               )}
-              onClick={() => image.id && setSelectedImageId(image.id)}
             >
-              <div className="relative aspect-[4/5] bg-muted">
-                <Image
+              <div className="relative bg-muted w-full">
+                <img
                   src={image.url}
                   alt={`Generated image ${index + 1}`}
-                  fill
-                  className="object-cover"
-                  unoptimized // External URLs need this
+                  className="w-full h-auto"
                 />
-                {image.id && (
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                  <Button 
+                    variant="secondary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewImage(image);
+                    }}
+                  >
+                    <Eye className="mr-2 size-4" />
+                    Preview
+                  </Button>
+                  {image.id && (
                     <Button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -197,12 +267,12 @@ export default function ResultsPage() {
                       }}
                     >
                       <Paintbrush className="mr-2 size-4" />
-                      Edit This Image
+                      Edit
                     </Button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-              <CardContent className="p-4">
+              {/* <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     {image.persona && (
@@ -241,11 +311,49 @@ export default function ResultsPage() {
                     </Button>
                   </div>
                 </div>
-              </CardContent>
+              </CardContent> */}
             </Card>
           );
         })}
       </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute -top-12 right-0 text-white hover:bg-white/20"
+              onClick={() => setPreviewImage(null)}
+            >
+              <X className="size-6" />
+            </Button>
+            
+            <div className="relative w-full h-full">
+              <img
+                src={previewImage.url}
+                alt="Preview"
+                className="max-w-full max-h-[90vh] w-auto h-auto object-contain"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="absolute bottom-4 right-4 flex gap-2">
+              <Button
+                onClick={() => handleDownload(previewImage.url, previewImage.file_name || "image.png")}
+                variant="secondary"
+              >
+                <Download className="mr-2 size-4" />
+                Download
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,4 +14,7 @@ export { tavilySearchTool } from "./tavily-search";
 export { claimsCheckTool } from "./claims-check";
 export { platformPolicyTool } from "./platform-policy";
 export { accessibilityTool } from "./accessibility";
-
+export { trademarkSearchTool } from "./trademark-search";
+export { plagiarismCheckTool } from "./plagiarism-check";
+export { reverseImageSearchTool } from "./reverse-image-search";
+export { audioFingerprintTool } from "./audio-fingerprint";

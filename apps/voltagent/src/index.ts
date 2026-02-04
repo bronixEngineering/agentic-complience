@@ -19,6 +19,8 @@ import {
   claimsCheckAgent,
   platformPolicyAgent,
   accessibilityAgent,
+  complianceAgent,
+
 } from "./agents";
 
 // Create logger (optional but recommended)
@@ -46,6 +48,8 @@ new VoltAgent({
     claimsCheckAgent,
     platformPolicyAgent,
     accessibilityAgent,
+    complianceAgent,
+
   },
   workflows: {
     creativeFanoutWorkflow,

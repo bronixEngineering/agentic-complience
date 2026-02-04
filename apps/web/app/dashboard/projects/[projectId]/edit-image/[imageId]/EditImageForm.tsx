@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-// import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 import { Loader2 } from "lucide-react";
@@ -16,9 +16,10 @@ interface EditImageFormProps {
   projectId: string;
   sourceImageUrl: string;
   imageId: string;
+  projectName: string;
 }
 
-export function EditImageForm({ projectId, sourceImageUrl, imageId }: EditImageFormProps) {
+export function EditImageForm({ projectId, sourceImageUrl, imageId, projectName }: EditImageFormProps) {
   const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -66,6 +67,17 @@ export function EditImageForm({ projectId, sourceImageUrl, imageId }: EditImageF
 
   return (
     <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-muted-foreground text-sm">Project: {projectName}</div>
+          <h1 className="text-lg font-semibold tracking-tight">Edit Image</h1>
+        </div>
+        <Button variant="secondary" asChild disabled={isLoading}>
+          <Link href={`/dashboard/projects/${projectId}/select-image`}>Back to Selection</Link>
+        </Button>
+      </div>
+
       {/* Before / After Comparison - Only shown after generation */}
       {generatedImages.length > 0 && (
         <div className="animate-in fade-in slide-in-from-top-4 duration-700">
@@ -149,13 +161,13 @@ export function EditImageForm({ projectId, sourceImageUrl, imageId }: EditImageF
               <Button 
                 onClick={handleEdit} 
                 disabled={isLoading || prompt.length < 8} 
-                className="w-full h-12 text-lg font-semibold"
+                className="w-full h-12 text-sm font-semibold"
                 variant={generatedImages.length > 0 ? "secondary" : "default"}
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Generating high-fidelity edit...
+                    Editing image...
                   </>
                 ) : (
                   generatedImages.length > 0 ? "Generate Another Version" : "Generate New Version"

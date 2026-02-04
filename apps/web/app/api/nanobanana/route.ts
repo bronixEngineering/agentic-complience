@@ -376,7 +376,8 @@ export async function POST(request: Request) {
                  content_data: {
                      url: img.url,
                      persona: item.personaId,
-                     prompt_id: `prompt_${item.personaId}`
+                     prompt_id: `prompt_${item.personaId}`,
+                     aspect_ratio: body.aspect_ratio || "1:1"
                  },
                  agent_id: item.personaId,
                  execution_id: internalExecutionId,

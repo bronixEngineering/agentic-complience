@@ -19,3 +19,4 @@ export { tavilySearchAgent } from "./tavily-search-agent";
 export { claimsCheckAgent } from "./claims-check-agent";
 export { platformPolicyAgent } from "./platform-policy-agent";
 export { accessibilityAgent } from "./accessibility-agent";
+export { complianceAgent } from "./compliance-agent";

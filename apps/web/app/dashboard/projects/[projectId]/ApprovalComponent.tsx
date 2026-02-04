@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X, Edit2 } from "lucide-react";
+import { Check, X, Edit2, Package, Users, Target, Palette, Sparkles, Loader2 } from "lucide-react";
+import { GenerationLoading } from "@/components/generation-loading";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface ApprovalComponentProps {
+  projectId: string;
   executionId: string;
   dbExecutionId: string;
   enhancedBrief: any;
@@ -16,6 +20,7 @@ interface ApprovalComponentProps {
 }
 
 export function ApprovalComponent({ 
+    projectId,
     executionId, 
     dbExecutionId,
     enhancedBrief, 
@@ -29,11 +34,132 @@ export function ApprovalComponent({
   const [isRejecting, setIsRejecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isExpired, setIsExpired] = useState(false);
+  const [selectedSection, setSelectedSection] = useState<string>("product");
+
+  // Define sections with icons
+  const sections = [
+    { 
+      key: "product", 
+      label: "Product Context", 
+      icon: Package,
+      data: enhancedBrief?.product 
+    },
+    { 
+      key: "target_audience", 
+      label: "Target Audience", 
+      icon: Users,
+      data: enhancedBrief?.target_audience 
+    },
+    { 
+      key: "goal", 
+      label: "Campaign Goal", 
+      icon: Target,
+      data: enhancedBrief?.goal 
+    },
+    { 
+      key: "visual_direction", 
+      label: "Visual Direction", 
+      icon: Palette,
+      data: enhancedBrief?.visual_direction 
+    },
+  ].filter(section => section.data); // Only show sections that have data
 
   const handleAction = async (approved: boolean) => {
     setIsProcessing(true);
     setError(null);
     
+    // For approval, call resume API and wait for workflow to complete
+    if (approved) {
+      try {
+        // Step 1: Resume the workflow
+        const res = await fetch("/api/nanobanana/resume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            executionId,
+            dbExecutionId,
+            approved,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          
+          if (errData.errorCode === "WORKFLOW_STATE_EXPIRED" || res.status === 410) {
+            setIsExpired(true);
+            setError("This workflow session has expired. VoltAgent may have been restarted. Please start a new generation.");
+            setIsProcessing(false);
+            return;
+          }
+          
+          throw new Error(errData.error || "Failed to resume workflow");
+        }
+
+        const data = await res.json();
+        
+        // If workflow completed immediately with images, go to results
+        if (data.status === "completed" && data.images?.length > 0) {
+          onComplete(data.images);
+          return;
+        }
+        
+        // If workflow is running, poll until complete (with longer intervals)
+        if (data.status === "running") {
+          const maxWaitTime = 3 * 60 * 1000; // 3 minutes max
+          const startTime = Date.now();
+          
+          // Poll with increasing intervals: 5s, 8s, 10s, 15s...
+          const intervals = [5000, 8000, 10000, 15000, 15000, 15000, 15000, 15000];
+          let pollIndex = 0;
+          
+          const pollForCompletion = async (): Promise<boolean> => {
+            if (Date.now() - startTime > maxWaitTime) {
+              throw new Error("Generation timed out. Please check results page.");
+            }
+            
+            const statusRes = await fetch(`/api/nanobanana/status?projectId=${projectId}`);
+            const statusData = await statusRes.json();
+            
+            if (statusData.images?.length > 0) {
+              onComplete(statusData.images);
+              return true;
+            }
+            
+            if (statusData.status === "completed") {
+              onComplete([]);
+              return true;
+            }
+            
+            if (statusData.status === "failed") {
+              throw new Error("Generation failed. Please try again.");
+            }
+            
+            return false; // Keep polling
+          };
+          
+          // Start polling loop
+          while (true) {
+            await new Promise(resolve => setTimeout(resolve, intervals[Math.min(pollIndex, intervals.length - 1)]));
+            pollIndex++;
+            
+            const isDone = await pollForCompletion();
+            if (isDone) return;
+          }
+        }
+
+        // Fallback - just go to results
+        onComplete([]);
+        return;
+        
+      } catch (err) {
+        console.error("Resume error:", err);
+        setError(err instanceof Error ? err.message : "Failed to process approval");
+        setIsProcessing(false);
+        return;
+      }
+    }
+    
+    // For rejection, we need to wait for the response
     try {
       const res = await fetch("/api/nanobanana/resume", {
         method: "POST",
@@ -42,7 +168,7 @@ export function ApprovalComponent({
           executionId,
           dbExecutionId,
           approved,
-          feedback: approved ? undefined : feedback,
+          feedback: feedback,
         }),
       });
 
@@ -67,15 +193,9 @@ export function ApprovalComponent({
         setIsRejecting(false);
         setFeedback("");
         onReSuspend?.(data.enhancedBrief);
-      } else if (data.images && data.images.length > 0) {
-        // Workflow completed with images
-        onComplete(data.images);
-      } else if (data.status === "completed") {
-        // Completed but no images (edge case)
-        onComplete([]);
       } else {
-        // Unknown state - treat as cancelled
-        onCancel?.();
+        // For all other cases (running, completed, etc), redirect to results page
+        onComplete([]);
       }
 
     } catch (err) {
@@ -86,11 +206,15 @@ export function ApprovalComponent({
     }
   };
 
+  if (isProcessing && !isRejecting) {
+    return <GenerationLoading />;
+  }
+
   return (
     <Card className="border-yellow-500/50 bg-yellow-500/5">
       <CardHeader>
-        <CardTitle className="text-yellow-500 flex items-center gap-2">
-           <Edit2 className="size-5" />
+        <CardTitle className="text-yellow-500 flex items-center gap-2 text-base">
+           <Edit2 className="size-4" />
            Review Enhanced Brief
         </CardTitle>
         <CardDescription>
@@ -117,86 +241,80 @@ export function ApprovalComponent({
           </div>
         )}
         
-        {/* Render Structured Brief if possible */}
-        {enhancedBrief && typeof enhancedBrief === 'object' ? (
-            <div className="grid gap-4 text-sm">
-                
-                {/* Product Section */}
-                {enhancedBrief.product && (
-                    <div className="rounded-lg border bg-card p-3 shadow-sm">
-                        <h4 className="font-semibold mb-2 text-primary">Product Context</h4>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-muted-foreground">
-                            {Object.entries(enhancedBrief.product).map(([k, v]) => (
-                                <div key={k}>
-                                    <span className="capitalize font-medium text-foreground">{k.replace(/_/g, ' ')}:</span> {String(v)}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                <div className="grid md:grid-cols-2 gap-4">
-                    {/* Audience */}
-                    {enhancedBrief.target_audience && (
-                         <div className="rounded-lg border bg-card p-3 shadow-sm">
-                            <h4 className="font-semibold mb-2 text-primary">Target Audience</h4>
-                            <div className="space-y-1 text-muted-foreground">
-                                {Object.entries(enhancedBrief.target_audience).map(([k, v]) => (
-                                    <div key={k}>
-                                        <span className="capitalize font-medium text-foreground">{k.replace(/_/g, ' ')}:</span> {String(v)}
-                                    </div>
-                                ))}
-                            </div>
-                         </div>
-                    )}
-
-                    {/* Goal */}
-                    {enhancedBrief.goal && (
-                         <div className="rounded-lg border bg-card p-3 shadow-sm">
-                            <h4 className="font-semibold mb-2 text-primary">Campaign Goal</h4>
-                             <div className="space-y-1 text-muted-foreground">
-                                {Object.entries(enhancedBrief.goal).map(([k, v]) => (
-                                    <div key={k}>
-                                        <span className="capitalize font-medium text-foreground">{k.replace(/_/g, ' ')}:</span> {String(v)}
-                                    </div>
-                                ))}
-                            </div>
-                         </div>
-                    )}
+        {/* Render Structured Brief with Side Navigation */}
+        {enhancedBrief && typeof enhancedBrief === 'object' && sections.length > 0 ? (
+            <div className="flex gap-6 h-[500px]">
+                {/* Left Sidebar - Section Navigation */}
+                <div className="w-64 flex-shrink-0 space-y-2 overflow-y-auto">
+                  {sections.map((section) => {
+                    const Icon = section.icon;
+                    const isActive = selectedSection === section.key;
+                    
+                    return (
+                      <button
+                        key={section.key}
+                        onClick={() => setSelectedSection(section.key)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all",
+                          isActive 
+                            ? "bg-primary text-primary-foreground shadow-sm" 
+                            : "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="size-4 flex-shrink-0" />
+                        <span className="text-sm font-medium">{section.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {/* Visual Direction (Important) */}
-                {enhancedBrief.visual_direction && (
-                    <div className="rounded-lg border bg-card p-3 shadow-sm">
-                        <h4 className="font-semibold mb-2 text-primary">Visual Direction</h4>
-                         <div className="grid md:grid-cols-2 gap-4 text-muted-foreground">
-                             {/* Flatten logic slightly for nested visual direction if needed, or just map */}
-                             {Object.entries(enhancedBrief.visual_direction).map(([k, v]) => {
-                                 if (typeof v === 'object' && v !== null) {
-                                     return (
-                                         <div key={k} className="col-span-2 md:col-span-1">
-                                             <span className="capitalize font-medium text-foreground block mb-1">{k.replace(/_/g, ' ')}</span>
-                                             <ul className="list-disc list-inside pl-1">
-                                                 {Object.entries(v as any).map(([subK, subV]) => (
-                                                     <li key={subK}><span className="opacity-70">{subK}:</span> {String(subV)}</li>
-                                                 ))}
-                                             </ul>
-                                         </div>
-                                     )
-                                 }
-                                 return (
-                                    <div key={k}>
-                                        <span className="capitalize font-medium text-foreground">{k.replace(/_/g, ' ')}:</span> {String(v)}
-                                    </div>
-                                 );
-                             })}
-                         </div>
-                    </div>
-                )}
-                
-                {/* Fallback for other fields or if simple string */}
-                <div className="mt-2">
-                    <Button variant="outline" size="sm" onClick={() => console.log(enhancedBrief)}>Log Full JSON for Debug</Button>
+                {/* Right Content - Selected Section Details */}
+                <div className="flex-1 min-w-0 h-full">
+                  {sections.map((section) => {
+                    if (selectedSection !== section.key) return null;
+                    
+                    const Icon = section.icon;
+                    
+                    return (
+                      <div key={section.key} className="rounded-lg border bg-card shadow-sm h-full flex flex-col">
+                        <div className="flex items-center gap-2 p-6 pb-4 border-b flex-shrink-0">
+                          <Icon className="size-5 text-primary" />
+                          <h4 className="font-semibold text-lg text-primary">{section.label}</h4>
+                        </div>
+                        
+                        <div className="space-y-3 text-sm p-6 pt-4 overflow-y-auto flex-1">
+                          {section.data && typeof section.data === 'object' && Object.entries(section.data).map(([k, v]) => {
+                            // Handle nested objects (like in visual_direction)
+                            if (typeof v === 'object' && v !== null) {
+                              return (
+                                <div key={k} className="space-y-1.5">
+                                  <span className="capitalize font-semibold text-foreground block">
+                                    {k.replace(/_/g, ' ')}
+                                  </span>
+                                  <ul className="space-y-1 pl-4 border-l-2 border-muted">
+                                    {Object.entries(v as any).map(([subK, subV]) => (
+                                      <li key={subK} className="text-muted-foreground">
+                                        <span className="font-medium text-foreground">{subK}:</span> {String(subV)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              );
+                            }
+                            
+                            return (
+                              <div key={k} className="flex flex-col gap-1">
+                                <span className="capitalize font-semibold text-foreground">
+                                  {k.replace(/_/g, ' ')}
+                                </span>
+                                <span className="text-muted-foreground leading-relaxed">{String(v)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
             </div>
         ) : (
