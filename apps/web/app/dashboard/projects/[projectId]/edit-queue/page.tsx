@@ -53,7 +53,7 @@ export default function EditQueuePage() {
             
             return {
               id: item.id,
-              original_url: contentData.original_url || "",
+              original_url: contentData.original_url || contentData.source_image || "",
               edited_url: contentData.url,
               edit_prompt: contentData.edit_prompt || "Image edit",
               status: contentData.status || "completed",

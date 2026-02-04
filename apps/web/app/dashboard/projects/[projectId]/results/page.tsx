@@ -31,6 +31,7 @@ export default function ResultsPage() {
   const [previewImage, setPreviewImage] = useState<ImageData | null>(null);
   const [isGenerating, setIsGenerating] = useState(true); // Start as true for immediate loading UI
   const [generationMessage, setGenerationMessage] = useState<string>("Preparing your images...");
+  const [isSuccessInfo, setIsSuccessInfo] = useState(false);
 
   useEffect(() => {
     // Single fetch on mount - no continuous polling
@@ -53,7 +54,8 @@ export default function ResultsPage() {
 
         // Handle different statuses
         if (data.status === "completed") {
-          setError("Generation completed but no images were produced.");
+          setIsSuccessInfo(true);
+          setError("Generation completed. You can see results in the All Images section.");
           setIsGenerating(false);
           setIsLoading(false);
           return;
@@ -166,9 +168,16 @@ export default function ResultsPage() {
   if (error && images.length === 0) {
     return (
       <div className="space-y-4">
-        <Card className="border-destructive/50 bg-destructive/5">
+        <Card className={cn(
+          "bg-destructive/5",
+          isSuccessInfo ? "border-blue-500/50 bg-blue-500/5" : "border-destructive/50"
+        )}>
           <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
+            <CardTitle className={cn(
+              isSuccessInfo ? "text-blue-500" : "text-destructive"
+            )}>
+              {isSuccessInfo ? "Info" : "Error"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">{error}</p>
@@ -176,12 +185,8 @@ export default function ResultsPage() {
               <Button variant="outline" asChild>
                 <Link href={`/dashboard/projects/${projectId}`}>
                   <ArrowLeft className="mr-2 size-4" />
-                  Back to Brief
+                  Create a new brief
                 </Link>
-              </Button>
-              <Button variant="outline" onClick={() => window.location.reload()}>
-                <RefreshCw className="mr-2 size-4" />
-                Refresh
               </Button>
             </div>
           </CardContent>
@@ -192,25 +197,7 @@ export default function ResultsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      {/* <div className="flex items-center justify-between">
-        <div>
-          <Button variant="ghost" size="sm" asChild className="mb-2">
-            <Link href={`/dashboard/projects/${projectId}`}>
-              <ArrowLeft className="mr-2 size-4" />
-              Back to Brief
-            </Link>
-          </Button>
-          <h1 className="text-lg font-semibold tracking-tight">Generated Images</h1>
-          <p className="text-sm text-muted-foreground">
-            Your creative assets have been generated successfully.
-          </p>
-        </div>
-        <Button onClick={() => router.push(`/dashboard/projects/${projectId}`)}>
-          <RefreshCw className="mr-2 size-4" />
-          Generate New
-        </Button>
-      </div> */}
+    
 
       {/* Success Notification - Right Side */}
       <div className="flex justify-end">

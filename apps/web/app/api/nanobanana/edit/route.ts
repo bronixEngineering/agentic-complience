@@ -141,7 +141,7 @@ export async function POST(request: Request) {
         // 3. Insert the image(s) linked to the execution
         const imageInserts = finalImages.map((img: any) => ({
              project_id: projectId,
-             content_type: "generated_image",
+             content_type: "edited_image",
              content_data: {
                  url: img.url,
                  prompt: prompt,
