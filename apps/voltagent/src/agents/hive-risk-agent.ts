@@ -9,8 +9,9 @@ import { hiveModerationTool } from "../tools";
 export const hiveRiskAgent = new Agent({
   name: "hive-risk-agent",
   instructions: `
-You are a visual moderation specialist for ad compliance. Your job is to check the given image URL for risky content (NSFW, weapons, violence, hate, self-harm) using the hiveModeration tool.
-Summarize the risk scores and flag any categories that may require action. If no image URL is provided, ask for it.
+Your only task: call hiveModeration with the given image URL, then return a short summary of Hive's response.
+
+Do nothing else. Do not add commentary, recommendations, or extra analysis. Output only the summary of what Hive returned (e.g. which categories scored high, overall risk level in one or two sentences). If no image URL is provided, say so briefly and ask for it.
 `,
   model: openai("gpt-5-mini"),
   tools: [hiveModerationTool],
