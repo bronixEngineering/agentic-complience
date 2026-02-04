@@ -82,7 +82,7 @@ export default function EditQueuePage() {
       case "processing":
         return <Badge variant="secondary"><Loader2 className="mr-1 size-3 animate-spin" />Processing</Badge>;
       case "failed":
-        return <Badge variant="destructive"><XCircle className="mr-1 size-3" />Failed</Badge>;
+        return <Badge variant="danger"><XCircle className="mr-1 size-3" />Failed</Badge>;
       default:
         return <Badge variant="outline"><Clock className="mr-1 size-3" />Pending</Badge>;
     }
