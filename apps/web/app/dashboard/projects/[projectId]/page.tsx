@@ -34,17 +34,24 @@ export default async function ProjectDetailPage({
     .single();
 
   // Redirect to appropriate page based on execution status
-  if (latestExecution?.status === "suspended") {
-    // Check if we have the enhanced brief
-    if (latestExecution.brief_version_id) {
-      const { data: briefVer } = await supabase
-        .from("project_brief_versions")
-        .select("enhanced_brief_json")
-        .eq("id", latestExecution.brief_version_id)
-        .single();
-      
-      if (briefVer?.enhanced_brief_json) {
-        redirect(`/dashboard/projects/${projectId}/approval`);
+  // Redirect to appropriate page based on execution status
+  if (latestExecution) {
+    if (latestExecution.status === "completed" || latestExecution.status === "running" || latestExecution.status === "failed") {
+      redirect(`/dashboard/projects/${projectId}/results`);
+    }
+
+    if (latestExecution.status === "suspended") {
+      // Check if we have the enhanced brief
+      if (latestExecution.brief_version_id) {
+        const { data: briefVer } = await supabase
+          .from("project_brief_versions")
+          .select("enhanced_brief_json")
+          .eq("id", latestExecution.brief_version_id)
+          .single();
+        
+        if (briefVer?.enhanced_brief_json) {
+          redirect(`/dashboard/projects/${projectId}/approval`);
+        }
       }
     }
   }

@@ -183,9 +183,9 @@ export default function ResultsPage() {
             <p className="text-sm text-muted-foreground">{error}</p>
             <div className="flex gap-2 mt-4">
               <Button variant="outline" asChild>
-                <Link href={`/dashboard/projects/${projectId}`}>
+                <Link href={`/dashboard/projects/${projectId}/gallery`}>
                   <ArrowLeft className="mr-2 size-4" />
-                  Create a new brief
+                  Go to Gallery
                 </Link>
               </Button>
             </div>
