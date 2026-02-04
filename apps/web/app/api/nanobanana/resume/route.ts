@@ -165,6 +165,23 @@ export async function POST(request: Request) {
     if (status === "completed" && workflowData.result?.images && projectId) {
         const rawImages = workflowData.result.images;
         
+        // Get aspect ratio from brief
+        let aspectRatio = "1:1"; // default
+        if (execData?.brief_version_id) {
+            const { data: briefData } = await supabase
+                .from("project_brief_versions")
+                .select("brief_json")
+                .eq("id", execData.brief_version_id)
+                .single();
+            
+            if (briefData?.brief_json) {
+                const briefJson = typeof briefData.brief_json === 'string' 
+                    ? JSON.parse(briefData.brief_json) 
+                    : briefData.brief_json;
+                aspectRatio = briefJson.aspectRatio || "1:1";
+            }
+        }
+        
         const imageInserts = rawImages.flatMap((item: any) => {
              const result = item.imageUrl; 
              return result.images.map((img: any) => ({
@@ -173,7 +190,8 @@ export async function POST(request: Request) {
                  content_data: {
                      url: img.url,
                      persona: item.personaId,
-                     prompt_id: `prompt_${item.personaId}`
+                     prompt_id: `prompt_${item.personaId}`,
+                     aspect_ratio: aspectRatio
                  },
                  agent_id: item.personaId,
                  execution_id: dbExecutionId,

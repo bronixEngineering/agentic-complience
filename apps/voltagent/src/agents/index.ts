@@ -11,3 +11,4 @@ export { creativeGeneratorPackshotAgent } from "./creative-generator-packshot-ag
 export { creativeGeneratorUgcAgent } from "./creative-generator-ugc-agent";
 export { creativeGeneratorMinimalLuxuryAgent } from "./creative-generator-minimal-luxury-agent";
 export { creativeGeneratorBoldTrendAgent } from "./creative-generator-bold-trend-agent";
+export { complianceAgent } from "./compliance-agent";

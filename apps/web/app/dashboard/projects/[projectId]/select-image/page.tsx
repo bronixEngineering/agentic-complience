@@ -40,7 +40,7 @@ export default async function SelectImagePage({
       <div className="flex items-center justify-between">
         <div>
           <div className="text-muted-foreground text-sm">Project: {project.name}</div>
-          <h1 className="text-2xl font-bold tracking-tight">Select Image to Edit</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Select Image to Edit</h1>
         </div>
         <Button variant="secondary" asChild>
           <Link href={`/dashboard/projects/${projectId}`}>Back to Project</Link>

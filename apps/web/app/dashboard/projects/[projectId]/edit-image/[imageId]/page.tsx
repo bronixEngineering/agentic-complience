@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { EditImageForm } from "./EditImageForm";
 
@@ -42,17 +40,12 @@ export default async function EditImagePage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-muted-foreground text-sm">Project: {project.name}</div>
-          <h1 className="text-2xl font-bold tracking-tight">Edit Image</h1>
-        </div>
-        <Button variant="secondary" asChild>
-          <Link href={`/dashboard/projects/${projectId}/select-image`}>Back to Selection</Link>
-        </Button>
-      </div>
-
-      <EditImageForm projectId={projectId} sourceImageUrl={imageUrl} imageId={imageId} />
+      <EditImageForm 
+        projectId={projectId} 
+        sourceImageUrl={imageUrl} 
+        imageId={imageId}
+        projectName={project.name}
+      />
     </div>
   );
 }
