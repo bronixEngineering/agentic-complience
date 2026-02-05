@@ -6,8 +6,8 @@ import {
   Frame,
   LayoutDashboard,
   ListChecks,
-  ShieldCheck,
   Sparkles,
+  Wand2,
 } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -43,14 +43,19 @@ const data = {
       icon: ListChecks,
     },
     {
-      title: "Compliance",
+      title: "Creative Assistant",
       url: "/dashboard/compliance",
-      icon: ShieldCheck,
+      icon: Wand2,
     },
   ],
 }
 
-function displayNameFromUser(user: any) {
+type UserLike = {
+  email?: string | null
+  user_metadata?: Record<string, unknown> | null
+}
+
+function displayNameFromUser(user: UserLike | null | undefined) {
   const md = (user?.user_metadata ?? {}) as Record<string, unknown>
   const name =
     (md["full_name"] as string | undefined) ||

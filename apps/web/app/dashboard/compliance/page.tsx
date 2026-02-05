@@ -13,16 +13,54 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
+import { useSidebar } from "@/components/ui/sidebar"
+import {
+  WorkingDirectoryPanel,
+  type WorkingDirectoryAsset,
+} from "@/components/creative-assistant/WorkingDirectoryPanel"
 
 const AGENT_ID = "all-in-one-supervisor-agent"
 const CHAT_API = `/api/voltagent/agents/${AGENT_ID}/chat`
 const CHAT_ID_STORAGE_KEY = `chatId:${AGENT_ID}`
 const STREAM_API = `/api/voltagent/agents/${AGENT_ID}/stream`
 
-function getMessageText(m: UIMessage | { content?: string }): string {
+type ToolInvocationPart = {
+  type: "tool-invocation"
+  toolCallId: string
+  toolName: string
+  state: "call" | "result"
+  args?: unknown
+  result?: unknown
+  errorText?: string
+}
+
+type TimelineStep = {
+  toolName?: string
+  state?: "call" | "result" | string
+  args?: unknown
+  result?: unknown
+  errorText?: string
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v)
+
+const isTextPart = (p: unknown): p is { type: "text"; text: string } =>
+  isRecord(p) && p["type"] === "text" && typeof p["text"] === "string"
+
+const isFilePart = (p: unknown): p is { type: "file"; url: string } =>
+  isRecord(p) && p["type"] === "file" && typeof p["url"] === "string"
+
+const isToolInvocationPart = (p: unknown): p is ToolInvocationPart =>
+  isRecord(p) &&
+  p["type"] === "tool-invocation" &&
+  typeof p["toolCallId"] === "string" &&
+  typeof p["toolName"] === "string" &&
+  (p["state"] === "call" || p["state"] === "result")
+
+function getMessageText(m: UIMessage | { content?: unknown }): string {
   // Back-compat: some streams still expose `content`
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (typeof (m as any)?.content === "string") return (m as any).content
+  if ("content" in m && typeof m.content === "string") return m.content
   if (!("parts" in m) || !Array.isArray(m.parts)) return ""
 
   return m.parts
@@ -31,13 +69,12 @@ function getMessageText(m: UIMessage | { content?: string }): string {
     .join("")
 }
 
-function getToolInvocations(m: UIMessage) {
+function getToolInvocations(m: UIMessage): ToolInvocationPart[] {
   if (!("parts" in m) || !Array.isArray(m.parts)) return []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return m.parts.filter((p) => p && (p as any).type === "tool-invocation") as any[]
+  return (m.parts as unknown[]).filter(isToolInvocationPart)
 }
 
-function ExecutionTimeline({ tools }: { tools: any[] }) {
+function ExecutionTimeline({ tools }: { tools: TimelineStep[] }) {
   // If the user hasn't toggled anything, we auto-open while tools are running.
   const [manualOpen, setManualOpen] = useState<boolean | null>(null)
   
@@ -85,7 +122,7 @@ function ExecutionTimeline({ tools }: { tools: any[] }) {
                       </Badge>
                     </div>
                     {/* Show args if available */}
-                    {tool?.args && (
+                    {tool?.args !== undefined && (
                       <div className="mt-1 rounded bg-muted/50 p-2 font-mono text-[10px] text-muted-foreground">
                         <div className="mb-1 text-[9px] uppercase tracking-wider opacity-50">Args</div>
                         <div className="line-clamp-3 break-all">
@@ -94,7 +131,7 @@ function ExecutionTimeline({ tools }: { tools: any[] }) {
                       </div>
                     )}
                      {/* Show result if available */}
-                    {tool?.state === "result" && tool?.result && (
+                    {tool?.state === "result" && tool?.result !== undefined && (
                        <div className="mt-1 rounded bg-muted/50 p-2 font-mono text-[10px] text-muted-foreground">
                          <div className="mb-1 text-[9px] uppercase tracking-wider opacity-50">Result</div>
                          <div className="line-clamp-3 overflow-hidden text-ellipsis">
@@ -205,10 +242,12 @@ function ComplianceChat({
   chatId,
   setChatId,
   initialMessages,
+  initialAssets,
 }: {
   chatId: string
   setChatId: (next: string) => void
   initialMessages: UIMessage[]
+  initialAssets: WorkingDirectoryAsset[]
 }) {
   const [input, setInput] = useState("")
   const [hasFile, setHasFile] = useState(false)
@@ -219,10 +258,15 @@ function ComplianceChat({
   const [streamError, setStreamError] = useState<string | null>(null)
   const [livePhase, setLivePhase] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const [assets, setAssets] = useState<WorkingDirectoryAsset[]>(initialAssets)
 
   useEffect(() => {
     setMessages(initialMessages)
   }, [initialMessages])
+
+  useEffect(() => {
+    setAssets(initialAssets)
+  }, [initialAssets])
 
   useEffect(() => {
     return () => {
@@ -230,17 +274,6 @@ function ComplianceChat({
       abortRef.current?.abort("unmount")
     }
   }, [])
-
-  const [copied, setCopied] = useState(false)
-  const copyChatId = async () => {
-    try {
-      await navigator.clipboard.writeText(chatId)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1000)
-    } catch {
-      // ignore
-    }
-  }
 
   const resetChatId = () => {
     const created = createChatId()
@@ -271,19 +304,22 @@ function ComplianceChat({
       reader.readAsDataURL(file)
     })
 
-  const upsertAssistantText = (parts: any[], appendText: string) => {
+  const upsertAssistantText = (parts: unknown[], appendText: string) => {
     const next = Array.isArray(parts) ? [...parts] : []
-    const idx = next.findIndex((p) => p?.type === "text")
+    const idx = next.findIndex(isTextPart)
     if (idx === -1) {
       next.unshift({ type: "text", text: appendText })
     } else {
-      next[idx] = { ...next[idx], text: String(next[idx]?.text ?? "") + appendText }
+      const cur = next[idx]
+      if (isTextPart(cur)) {
+        next[idx] = { ...cur, text: String(cur.text ?? "") + appendText }
+      }
     }
     return next
   }
 
   const upsertToolInvocation = (
-    parts: any[],
+    parts: unknown[],
     invocation: {
       toolCallId: string
       toolName: string
@@ -295,7 +331,7 @@ function ComplianceChat({
   ) => {
     const next = Array.isArray(parts) ? [...parts] : []
     const idx = next.findIndex(
-      (p) => p?.type === "tool-invocation" && p?.toolCallId === invocation.toolCallId
+      (p) => isToolInvocationPart(p) && p.toolCallId === invocation.toolCallId
     )
     const payload = {
       type: "tool-invocation",
@@ -307,8 +343,100 @@ function ComplianceChat({
       ...(invocation.errorText ? { errorText: invocation.errorText } : {}),
     }
     if (idx === -1) next.push(payload)
-    else next[idx] = { ...next[idx], ...payload }
+    else {
+      const cur = next[idx]
+      next[idx] = isRecord(cur) ? { ...cur, ...payload } : payload
+    }
     return next
+  }
+
+  const upsertAssistantFiles = (
+    parts: unknown[],
+    filesToAdd: Array<{ url: string; mediaType?: string; filename?: string }>
+  ) => {
+    const next = Array.isArray(parts) ? [...parts] : []
+    const seen = new Set(
+      next
+        .filter(isFilePart)
+        .map((p) => String(p.url))
+    )
+    for (const f of filesToAdd) {
+      if (!f?.url || seen.has(f.url)) continue
+      seen.add(f.url)
+      next.push({
+        type: "file",
+        url: f.url,
+        mediaType: f.mediaType ?? "image/png",
+        ...(f.filename ? { filename: f.filename } : {}),
+      })
+    }
+    return next
+  }
+
+  const extractImagesFromToolOutput = (output: unknown) => {
+    const images: Array<{ url: string; mediaType?: string; filename?: string; metadata?: unknown }> =
+      []
+    if (!output || typeof output !== "object") return images
+    const rec = output as Record<string, unknown>
+    const maybeImages = rec["images"]
+    if (Array.isArray(maybeImages)) {
+      for (const item of maybeImages) {
+        if (!item || typeof item !== "object") continue
+        const img = item as Record<string, unknown>
+        const url = typeof img["url"] === "string" ? img["url"] : ""
+        if (!url) continue
+        images.push({
+          url,
+          mediaType:
+            typeof img["content_type"] === "string"
+              ? (img["content_type"] as string)
+              : undefined,
+          filename: typeof img["file_name"] === "string" ? (img["file_name"] as string) : undefined,
+          metadata: img,
+        })
+      }
+      return images
+    }
+    // fallback shapes
+    const url = typeof rec["url"] === "string" ? (rec["url"] as string) : ""
+    if (url) images.push({ url, metadata: rec })
+    return images
+  }
+
+  const addOptimisticAssets = ({
+    toolName,
+    toolCallId,
+    images,
+  }: {
+    toolName: string
+    toolCallId: string
+    images: Array<{ url: string; mediaType?: string; filename?: string; metadata?: unknown }>
+  }) => {
+    const createdAt = new Date().toISOString()
+    const newOnes = images.map((img, idx) => {
+      const localId = `local:${toolCallId}:${idx}:${Date.now()}`
+      return {
+        id: localId,
+        toolName,
+        toolCallId,
+        originalUrl: img.url,
+        createdAt,
+        status: "optimistic" as const,
+      } satisfies WorkingDirectoryAsset
+    })
+
+    setAssets((prev) => {
+      const seen = new Set(prev.map((a) => a.originalUrl))
+      const merged = [...prev]
+      for (const a of newOnes) {
+        if (seen.has(a.originalUrl)) continue
+        seen.add(a.originalUrl)
+        merged.push(a)
+      }
+      return merged
+    })
+
+    return newOnes
   }
 
   const sendLiveMessage = async ({
@@ -327,7 +455,7 @@ function ComplianceChat({
     const abort = new AbortController()
     abortRef.current = abort
 
-    const parts: any[] = []
+    const parts: UIMessage["parts"] = []
     const trimmed = (text ?? "").trim()
     if (trimmed) parts.push({ type: "text", text: trimmed })
 
@@ -381,13 +509,95 @@ function ComplianceChat({
     const dec = new TextDecoder()
     let buf = ""
 
-    const applyToAssistant = (fn: (parts: any[]) => any[]) => {
+    const applyToAssistant = (fn: (parts: unknown[]) => unknown[]) => {
       setMessages((prev) =>
         prev.map((m) => {
           if (m.id !== assistantMessageId) return m
-          return { ...m, parts: fn((m as any).parts) }
+          const curParts = Array.isArray(m.parts) ? (m.parts as unknown[]) : []
+          return { ...m, parts: fn(curParts) as unknown as UIMessage["parts"] }
         })
       )
+    }
+
+    const persistAssetsForAssistant = async ({
+      toolName,
+      toolCallId,
+      optimistic,
+      images,
+    }: {
+      toolName: string
+      toolCallId: string
+      optimistic: WorkingDirectoryAsset[]
+      images: Array<{ url: string; mediaType?: string; filename?: string; metadata?: unknown }>
+    }) => {
+      try {
+        const payload = {
+          toolName,
+          toolCallId,
+          assets: optimistic.map((o, idx) => ({
+            clientId: o.id,
+            url: images[idx]?.url ?? o.originalUrl,
+            metadata: images[idx]?.metadata,
+          })),
+        }
+
+        const res = await fetch(
+          `/api/voltagent/conversations/${encodeURIComponent(chatId)}/assets/import`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        )
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => null)
+          throw new Error(err?.error || `Asset import failed (HTTP ${res.status})`)
+        }
+
+        const json = (await res.json()) as {
+          assets?: Array<{
+            id: string
+            clientId?: string
+            originalUrl: string
+            storedUrl: string
+            createdAt: string
+          }>
+        }
+
+        const imported = Array.isArray(json.assets) ? json.assets : []
+        if (imported.length === 0) return
+
+        // Update workspace items + swap assistant file URLs to stored URLs.
+        setAssets((prev) =>
+          prev.map((a) => {
+            const match = imported.find((x) => x.clientId === a.id)
+            if (!match) return a
+            return {
+              ...a,
+              id: match.id,
+              storedUrl: match.storedUrl,
+              createdAt: match.createdAt,
+              status: "stored",
+            }
+          })
+        )
+
+        applyToAssistant((p) => {
+          const next = Array.isArray(p) ? [...p] : []
+          return next.map((part) => {
+            if (!isFilePart(part)) return part
+            const match = imported.find((x) => x.originalUrl === part.url)
+            return match ? { ...part, url: match.storedUrl } : part
+          })
+        })
+      } catch {
+        setAssets((prev) =>
+          prev.map((a) =>
+            optimistic.some((o) => o.id === a.id) ? { ...a, status: "error" } : a
+          )
+        )
+      }
     }
 
     try {
@@ -411,21 +621,25 @@ function ComplianceChat({
           const dataStr = dataLines.join("\n")
           if (!dataStr || dataStr === "[DONE]") continue
 
-          let evt: any
+          let evt: unknown
           try {
-            evt = JSON.parse(dataStr)
+            evt = JSON.parse(dataStr) as unknown
           } catch {
             continue
           }
 
-          switch (evt?.type) {
+          if (!isRecord(evt)) continue
+          const evtType = typeof evt["type"] === "string" ? (evt["type"] as string) : ""
+
+          switch (evtType) {
             case "start":
             case "start-step": {
               setLivePhase("Thinking…")
               break
             }
             case "text-delta": {
-              const delta = typeof evt.text === "string" ? evt.text : ""
+              const delta =
+                typeof evt["text"] === "string" ? (evt["text"] as string) : ""
               if (delta) {
                 setLivePhase("Responding…")
                 applyToAssistant((p) => upsertAssistantText(p, delta))
@@ -433,8 +647,10 @@ function ComplianceChat({
               break
             }
             case "tool-call": {
-              const toolCallId = String(evt.toolCallId || "")
-              const toolName = String(evt.toolName || "tool")
+              const toolCallId =
+                typeof evt["toolCallId"] === "string" ? (evt["toolCallId"] as string) : ""
+              const toolName =
+                typeof evt["toolName"] === "string" ? (evt["toolName"] as string) : "tool"
               if (toolCallId) {
                 setLivePhase(
                   toolName === "delegate_task"
@@ -445,7 +661,7 @@ function ComplianceChat({
                   upsertToolInvocation(p, {
                     toolCallId,
                     toolName,
-                    args: evt.input,
+                    args: evt["input"],
                     state: "call",
                   })
                 )
@@ -453,8 +669,10 @@ function ComplianceChat({
               break
             }
             case "tool-result": {
-              const toolCallId = String(evt.toolCallId || "")
-              const toolName = String(evt.toolName || "tool")
+              const toolCallId =
+                typeof evt["toolCallId"] === "string" ? (evt["toolCallId"] as string) : ""
+              const toolName =
+                typeof evt["toolName"] === "string" ? (evt["toolName"] as string) : "tool"
               if (toolCallId) {
                 setLivePhase(
                   toolName === "delegate_task"
@@ -465,26 +683,50 @@ function ComplianceChat({
                   upsertToolInvocation(p, {
                     toolCallId,
                     toolName,
-                    args: evt.input,
+                    args: evt["input"],
                     state: "result",
-                    result: evt.output,
+                    result: evt["output"],
                   })
                 )
+
+                // If this tool produced images, show them in chat and add them to the workspace.
+                if (
+                  toolName === "nanoBananaProImage" ||
+                  toolName === "nanoBananaEditImage"
+                ) {
+                  const imgs = extractImagesFromToolOutput(evt["output"])
+                  if (imgs.length > 0) {
+                    applyToAssistant((p) => upsertAssistantFiles(p, imgs))
+                    const optimistic = addOptimisticAssets({
+                      toolName,
+                      toolCallId,
+                      images: imgs,
+                    })
+                    void persistAssetsForAssistant({
+                      toolName,
+                      toolCallId,
+                      optimistic,
+                      images: imgs,
+                    })
+                  }
+                }
               }
               break
             }
             case "tool-error": {
-              const toolCallId = String(evt.toolCallId || "")
-              const toolName = String(evt.toolName || "tool")
+              const toolCallId =
+                typeof evt["toolCallId"] === "string" ? (evt["toolCallId"] as string) : ""
+              const toolName =
+                typeof evt["toolName"] === "string" ? (evt["toolName"] as string) : "tool"
               if (toolCallId) {
                 setLivePhase(`Tool error: ${toolName}`)
                 applyToAssistant((p) =>
                   upsertToolInvocation(p, {
                     toolCallId,
                     toolName,
-                    args: evt.input,
+                    args: evt["input"],
                     state: "result",
-                    result: evt.error,
+                    result: evt["error"],
                     errorText: "tool-error",
                   })
                 )
@@ -564,21 +806,32 @@ function ComplianceChat({
     // Height calculation: 100vh - 4rem (header) - 2rem (padding) - 2rem (extra buffer) = calc(100vh - 8rem)
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
       <div className="flex-none">
-        <h1 className="text-2xl font-semibold tracking-tight">Compliance</h1>
-        <p className="text-muted-foreground text-sm">Supervisor Agent powered by VoltAgent</p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight">Creative Assistant</h1>
+            <p className="text-muted-foreground text-sm">
+              Create, edit, and review assets in a workspace
+            </p>
+          </div>
+          <div className="shrink-0">
+            <Button type="button" variant="outline" size="sm" onClick={resetChatId}>
+              New canvas
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-        <Card className="flex flex-1 flex-col overflow-hidden shadow-md">
+        <Card className="flex flex-1 flex-col overflow-hidden shadow-md lg:w-1/3 lg:max-w-[420px]">
         <CardHeader className="flex-none border-b bg-muted/20 px-6 py-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-              <ShieldCheckIcon className="h-5 w-5 text-primary" />
+              <CreativeAssistantIcon className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-base">Compliance Supervisor</CardTitle>
+              <CardTitle className="text-base">Creative Assistant</CardTitle>
               <CardDescription className="text-xs">
-                Upload ad creatives to check against policy guidelines
+                Chat on the left, generated assets on the right
               </CardDescription>
             </div>
           </div>
@@ -596,9 +849,9 @@ function ComplianceChat({
                     <Bot className="h-10 w-10 text-muted-foreground/50" />
                   </div>
                   <div className="max-w-sm space-y-2">
-                    <h3 className="font-medium">Ready to check your ads</h3>
+                    <h3 className="font-medium">Your workspace is ready</h3>
                     <p className="text-sm text-muted-foreground">
-                      I can help analyze your ad creatives for compliance risks, banned logos, and policy violations.
+                      Describe what you want to create, edit, or extract. Generated assets will appear in your workspace.
                     </p>
                   </div>
                   
@@ -606,16 +859,20 @@ function ComplianceChat({
                     <Button 
                       variant="outline" 
                       className="h-auto flex-col gap-1 p-3 text-xs"
-                      onClick={() => handleSuggestion("Are there any banned logos in this image?")}
+                      onClick={() =>
+                        handleSuggestion(
+                          "Generate an ad creative for a skincare brand (16:9). Add a clean product shot, soft lighting, and a short headline."
+                        )
+                      }
                     >
-                      <span>🚫 Check for Banned Logos</span>
+                      <span>Generate an Ad</span>
                     </Button>
                     <Button 
                       variant="outline" 
                       className="h-auto flex-col gap-1 p-3 text-xs"
-                      onClick={() => handleSuggestion("Does this ad text violate any claims policy?")}
+                      onClick={() => handleSuggestion("Extract text from this image and summarize it.")}
                     >
-                      <span>📝 Analyze Ad Claims</span>
+                      <span>OCR and Summarize</span>
                     </Button>
                   </div>
                 </div>
@@ -646,6 +903,12 @@ function ComplianceChat({
                 </div>
               )}
             </div>
+
+            {streamError && (
+              <div className="flex-none border-t bg-destructive/5 px-4 py-2 text-xs text-destructive">
+                {streamError}
+              </div>
+            )}
 
             <div className="flex-none border-t bg-background/50 p-4 backdrop-blur supports-backdrop-filter:bg-background/80">
               <form onSubmit={handleSubmit} className="mx-auto flex max-w-3xl gap-2">
@@ -698,53 +961,29 @@ function ComplianceChat({
         </CardContent>
       </Card>
 
-        <Card className="hidden w-full shrink-0 shadow-md lg:block lg:w-80">
-          <CardHeader className="border-b bg-muted/20 px-6 py-4">
-            <CardTitle className="text-base">Debug</CardTitle>
-            <CardDescription className="text-xs">Resumable stream metadata</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 p-6 text-sm">
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Conversation ID</div>
-              <div className="rounded-md border bg-background/50 p-3 font-mono text-xs break-all">
-                {chatId}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={copyChatId}
-                  disabled={!chatId}
-                >
-                  {copied ? "Copied" : "Copy"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={resetChatId}
-                >
-                  Reset
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                This id is sent as <span className="font-mono">options.conversationId</span> for resumable streams.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <WorkingDirectoryPanel
+          conversationId={chatId}
+          assets={assets}
+          className="lg:flex-1"
+        />
       </div>
     </div>
   )
 }
 
 export default function CompliancePage() {
+  const { setOpen, isMobile } = useSidebar()
+
+  useEffect(() => {
+    // Make the left sidebar minimal by default on this page (desktop only).
+    if (!isMobile) setOpen(false)
+  }, [isMobile, setOpen])
+
   // Stable conversation id is required for resumable streams.
   // We persist it in localStorage so refreshes can resume an in-flight stream.
   const [chatId, setChatId] = useState<string | null>(null)
   const [initialMessages, setInitialMessages] = useState<UIMessage[] | null>(null)
+  const [initialAssets, setInitialAssets] = useState<WorkingDirectoryAsset[] | null>(null)
   const [historyError, setHistoryError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -760,23 +999,44 @@ export default function CompliancePage() {
     if (!chatId) return
     let cancelled = false
     setInitialMessages(null)
+    setInitialAssets(null)
     setHistoryError(null)
     ;(async () => {
       try {
-        const res = await fetch(`/api/voltagent/conversations/${encodeURIComponent(chatId)}/messages`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        })
-        if (!res.ok) {
-          const body = await res.json().catch(() => null)
-          throw new Error(body?.error || `Failed to load history (HTTP ${res.status})`)
+        const [msgsRes, assetsRes] = await Promise.all([
+          fetch(`/api/voltagent/conversations/${encodeURIComponent(chatId)}/messages`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }),
+          fetch(`/api/voltagent/conversations/${encodeURIComponent(chatId)}/assets`, {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }),
+        ])
+
+        if (!msgsRes.ok) {
+          const body = await msgsRes.json().catch(() => null)
+          throw new Error(body?.error || `Failed to load history (HTTP ${msgsRes.status})`)
         }
-        const json = (await res.json()) as { messages?: UIMessage[] }
-        if (!cancelled) setInitialMessages(Array.isArray(json.messages) ? json.messages : [])
+        const msgsJson = (await msgsRes.json()) as { messages?: UIMessage[] }
+
+        let assets: WorkingDirectoryAsset[] = []
+        if (assetsRes.ok) {
+          const assetsJson = (await assetsRes.json().catch(() => null)) as
+            | { assets?: WorkingDirectoryAsset[] }
+            | null
+          assets = Array.isArray(assetsJson?.assets) ? assetsJson!.assets! : []
+        }
+
+        if (!cancelled) {
+          setInitialMessages(Array.isArray(msgsJson.messages) ? msgsJson.messages : [])
+          setInitialAssets(assets)
+        }
       } catch (e) {
         if (!cancelled) {
           setHistoryError(e instanceof Error ? e.message : "Failed to load history")
           setInitialMessages([])
+          setInitialAssets([])
         }
       }
     })()
@@ -785,16 +1045,26 @@ export default function CompliancePage() {
     }
   }, [chatId])
 
-  if (!chatId || !initialMessages) {
+  if (!chatId || !initialMessages || !initialAssets) {
     return (
       <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
         <div className="flex-none">
-          <h1 className="text-2xl font-semibold tracking-tight">Compliance</h1>
-          <p className="text-muted-foreground text-sm">Supervisor Agent powered by VoltAgent</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Creative Assistant</h1>
+          <p className="text-muted-foreground text-sm">
+            Create, edit, and review assets in a workspace
+          </p>
         </div>
-        <Card className="flex flex-1 items-center justify-center">
-          <CardContent className="py-10 text-sm text-muted-foreground">
-            Initializing chat session…
+        <Card className="flex flex-1 items-center justify-center overflow-hidden">
+          <CardContent className="py-10 text-center">
+            <div className="mx-auto max-w-md space-y-3">
+              <div className="text-sm font-medium tracking-wide">Loading your workspace</div>
+              <div className="text-xs text-muted-foreground">
+                Restoring this conversation and preparing the canvas…
+              </div>
+              <div className="mx-auto mt-6 h-2 w-48 rounded-full bg-muted">
+                <div className="h-2 w-24 animate-pulse rounded-full bg-primary/40" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -808,12 +1078,17 @@ export default function CompliancePage() {
           Failed to load chat history: {historyError}
         </div>
       )}
-      <ComplianceChat chatId={chatId} setChatId={setChatId} initialMessages={initialMessages} />
+      <ComplianceChat
+        chatId={chatId}
+        setChatId={setChatId}
+        initialMessages={initialMessages}
+        initialAssets={initialAssets}
+      />
     </>
   )
 }
 
-function ShieldCheckIcon(props: React.SVGProps<SVGSVGElement>) {
+function CreativeAssistantIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -827,8 +1102,15 @@ function ShieldCheckIcon(props: React.SVGProps<SVGSVGElement>) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-      <path d="m9 12 2 2 4-4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="M4 12H2" />
+      <path d="M22 12h-2" />
+      <path d="m19.07 4.93-1.41 1.41" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 19.07-1.41-1.41" />
+      <path d="m6.34 6.34-1.41-1.41" />
+      <path d="M12 7a5 5 0 0 0 0 10a5 5 0 0 0 0-10Z" />
     </svg>
   )
 }

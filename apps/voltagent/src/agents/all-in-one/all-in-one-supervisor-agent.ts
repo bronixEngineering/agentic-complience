@@ -41,7 +41,7 @@ You delegate to sub-agents using the delegate_task tool and then aggregate resul
 - If you delegated, clearly report what you did and include the key outputs (e.g. imageUrl, OCR text, moderation highlights).
 - Respect the user's language in your reply.
 `,
-  model: openai("gpt-5-mini"),
+  model: openai("gpt-5-nano"),
   subAgents: [
     allInOneImageGeneratorAgent,
     allInOneImageEditorAgent,
