@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { Images, Download, Eye, Loader2 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { Images, Download, Eye, Loader2, Paintbrush } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +21,7 @@ interface ImageData {
 export default function GalleryPage() {
   const params = useParams();
   const projectId = params.projectId as string;
+  const router = useRouter();
 
   const [images, setImages] = useState<ImageData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,7 +36,7 @@ export default function GalleryPage() {
           .from("project_content")
           .select("id, content_data, created_at")
           .eq("project_id", projectId)
-          .eq("content_type", "generated_image")
+          .in("content_type", ["generated_image", "edited_image"])
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -136,19 +137,27 @@ export default function GalleryPage() {
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                     <Button 
-                      size="sm"
+                      size="icon"
                       variant="secondary"
                       onClick={() => setPreviewImage(image)}
+                      title="Preview"
                     >
-                      <Eye className="mr-2 size-3" />
-                      Preview
+                      <Eye className="size-4" />
                     </Button>
                     <Button 
-                      size="sm"
+                      size="icon"
+                      variant="secondary"
                       onClick={() => handleDownload(image.url, image.file_name || "image.png")}
+                      title="Download"
                     >
-                      <Download className="mr-2 size-3" />
-                      Download
+                      <Download className="size-4" />
+                    </Button>
+                    <Button 
+                      size="icon"
+                      onClick={() => router.push(`/dashboard/projects/${projectId}/edit-image/${image.id}`)}
+                      title="Edit"
+                    >
+                      <Paintbrush className="size-4" />
                     </Button>
                   </div>
                 </div>
