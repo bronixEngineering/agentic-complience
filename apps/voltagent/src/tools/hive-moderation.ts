@@ -38,10 +38,14 @@ export const hiveModerationTool = createTool({
     imageUrl: z
       .string()
       .describe(
-        "Public http(s) URL of the image to moderate. Note: data: URLs from direct uploads are not supported by Hive."
+        "Public http(s) URL of the image to moderate. Note: data: URLs from direct uploads are not supported by Hive.",
       ),
   }),
-  execute: async (args): Promise<HiveSuccessResponse | { error: string; task_id?: null; output?: [] }> => {
+  execute: async (
+    args,
+  ): Promise<
+    HiveSuccessResponse | { error: string; task_id?: null; output?: [] }
+  > => {
     const { imageUrl } = args;
 
     if (imageUrl.startsWith("data:")) {
@@ -85,7 +89,11 @@ export const hiveModerationTool = createTool({
     try {
       data = await res.json();
     } catch {
-      return { error: "Invalid Hive response (not JSON)", task_id: null, output: [] };
+      return {
+        error: "Invalid Hive response (not JSON)",
+        task_id: null,
+        output: [],
+      };
     }
 
     const parsed = data as Partial<HiveSuccessResponse>;

@@ -22,17 +22,52 @@ export async function POST(
       return NextResponse.json({ error: "Missing agentId" }, { status: 400 });
     }
 
-    const body = await request.json();
+    const body: unknown = await request.json();
+
+    type JsonRecord = Record<string, unknown>;
+    const isJsonRecord = (v: unknown): v is JsonRecord =>
+      typeof v === "object" && v !== null && !Array.isArray(v);
+
     // Vercel AI SDK sends { messages, ... }.
     // VoltAgent expects { input: messages, ... }.
     // Preserve additional fields (e.g. chat/session identifiers) if present.
-    const voltagentBody = Array.isArray(body?.messages)
-      ? (() => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { messages, ...rest } = body as { messages: unknown; [k: string]: unknown };
-          return { ...rest, input: body.messages };
-        })()
-      : body;
+    const voltagentBody = (() => {
+      if (!isJsonRecord(body)) return body;
+      const messages = body["messages"];
+      if (!Array.isArray(messages)) return body;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { messages: _messages, ...rest } = body;
+      return { ...rest, input: messages };
+    })();
+
+    // Resumable streams need stable userId + conversationId.
+    // We always set userId from the authenticated Supabase user.
+    // conversationId is taken from:
+    // - AI SDK chat id (body.id) if provided
+    // - caller-provided options.conversationId if present
+    const existingOptions = (() => {
+      if (!isJsonRecord(voltagentBody)) return undefined;
+      const options = voltagentBody["options"];
+      return isJsonRecord(options) ? options : undefined;
+    })();
+
+    const conversationId = (() => {
+      if (isJsonRecord(body) && typeof body["id"] === "string") return body["id"];
+      const maybeConversationId = existingOptions?.["conversationId"];
+      return typeof maybeConversationId === "string" ? maybeConversationId : undefined;
+    })();
+
+    const voltagentBodyWithOptions = isJsonRecord(voltagentBody)
+      ? {
+          ...voltagentBody,
+          options: {
+            ...(existingOptions ?? {}),
+            userId: user.id,
+            ...(conversationId ? { conversationId } : {}),
+            resumableStream: true,
+          },
+        }
+      : voltagentBody;
 
     const res = await fetch(`${VOLTAGENT_API_URL}/agents/${agentId}/chat`, {
       method: "POST",
@@ -45,7 +80,7 @@ export async function POST(
           "X-Voltagent-Key": process.env.VOLTAGENT_PUBLIC_KEY,
         }),
       },
-      body: JSON.stringify(voltagentBody),
+      body: JSON.stringify(voltagentBodyWithOptions),
       signal: request.signal,
     });
 

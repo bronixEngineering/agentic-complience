@@ -17,7 +17,9 @@ import {
 } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
 
-const CHAT_API = "/api/voltagent/agents/compliance-supervisor-agent/chat"
+const AGENT_ID = "compliance-supervisor-agent"
+const CHAT_API = `/api/voltagent/agents/${AGENT_ID}/chat`
+const CHAT_ID_STORAGE_KEY = `chatId:${AGENT_ID}`
 
 function getMessageText(m: UIMessage | { content?: string }): string {
   // Back-compat: some streams still expose `content`
@@ -170,14 +172,78 @@ function MessageBody({ message }: { message: UIMessage }) {
   )
 }
 
-export default function CompliancePage() {
+function createChatId() {
+  return typeof window.crypto?.randomUUID === "function"
+    ? window.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function getOrCreateStoredChatId(): string {
+  const existing = window.localStorage.getItem(CHAT_ID_STORAGE_KEY)
+  if (existing) return existing
+  const created = createChatId()
+  window.localStorage.setItem(CHAT_ID_STORAGE_KEY, created)
+  return created
+}
+
+function ComplianceChat({
+  chatId,
+  setChatId,
+  initialMessages,
+}: {
+  chatId: string
+  setChatId: (next: string) => void
+  initialMessages: UIMessage[]
+}) {
   const [input, setInput] = useState("")
   const [hasFile, setHasFile] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  
-  const transport = useMemo(() => new DefaultChatTransport({ api: CHAT_API }), [])
-  const { messages, sendMessage, status } = useChat({ 
+
+  const [copied, setCopied] = useState(false)
+  const copyChatId = async () => {
+    try {
+      await navigator.clipboard.writeText(chatId)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1000)
+    } catch {
+      // ignore
+    }
+  }
+
+  const resetChatId = () => {
+    const created = createChatId()
+    try {
+      window.localStorage.setItem(CHAT_ID_STORAGE_KEY, created)
+    } catch {
+      // ignore
+    }
+    setChatId(created)
+  }
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: CHAT_API,
+        prepareSendMessagesRequest: ({ id, messages, trigger, messageId }) => ({
+          body: {
+            id,
+            messages,
+            trigger,
+            messageId,
+          },
+        }),
+        prepareReconnectToStreamRequest: ({ id }) => ({
+          api: `/api/voltagent/agents/${AGENT_ID}/chat/${id}/stream`,
+        }),
+      }),
+    []
+  )
+
+  const { messages, sendMessage, status } = useChat({
+    id: chatId,
+    messages: initialMessages,
+    resume: true,
     transport,
     onError: (error) => {
       console.error("Chat error:", error)
@@ -227,12 +293,11 @@ export default function CompliancePage() {
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
       <div className="flex-none">
         <h1 className="text-2xl font-semibold tracking-tight">Compliance</h1>
-        <p className="text-muted-foreground text-sm">
-          Supervisor Agent powered by VoltAgent
-        </p>
+        <p className="text-muted-foreground text-sm">Supervisor Agent powered by VoltAgent</p>
       </div>
 
-      <Card className="flex flex-1 flex-col overflow-hidden shadow-md">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+        <Card className="flex flex-1 flex-col overflow-hidden shadow-md">
         <CardHeader className="flex-none border-b bg-muted/20 px-6 py-4">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
@@ -303,7 +368,7 @@ export default function CompliancePage() {
               )}
             </div>
 
-            <div className="flex-none border-t bg-background/50 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <div className="flex-none border-t bg-background/50 p-4 backdrop-blur supports-backdrop-filter:bg-background/80">
               <form onSubmit={handleSubmit} className="mx-auto flex max-w-3xl gap-2">
                 <div className="relative flex min-w-0 flex-1 items-center gap-2 rounded-md border bg-background px-3 shadow-sm focus-within:ring-1 focus-within:ring-ring">
                    <div 
@@ -353,7 +418,119 @@ export default function CompliancePage() {
           </div>
         </CardContent>
       </Card>
+
+        <Card className="hidden w-full shrink-0 shadow-md lg:block lg:w-80">
+          <CardHeader className="border-b bg-muted/20 px-6 py-4">
+            <CardTitle className="text-base">Debug</CardTitle>
+            <CardDescription className="text-xs">Resumable stream metadata</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 p-6 text-sm">
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Conversation ID</div>
+              <div className="rounded-md border bg-background/50 p-3 font-mono text-xs break-all">
+                {chatId}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={copyChatId}
+                  disabled={!chatId}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={resetChatId}
+                >
+                  Reset
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This id is sent as <span className="font-mono">options.conversationId</span> for resumable streams.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
+  )
+}
+
+export default function CompliancePage() {
+  // Stable conversation id is required for resumable streams.
+  // We persist it in localStorage so refreshes can resume an in-flight stream.
+  const [chatId, setChatId] = useState<string | null>(null)
+  const [initialMessages, setInitialMessages] = useState<UIMessage[] | null>(null)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+
+  useEffect(() => {
+    try {
+      setChatId(getOrCreateStoredChatId())
+    } catch {
+      // If storage is unavailable, fall back to a per-tab id (resume won't survive refresh).
+      setChatId(createChatId())
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!chatId) return
+    let cancelled = false
+    setInitialMessages(null)
+    setHistoryError(null)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/voltagent/conversations/${encodeURIComponent(chatId)}/messages`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error || `Failed to load history (HTTP ${res.status})`)
+        }
+        const json = (await res.json()) as { messages?: UIMessage[] }
+        if (!cancelled) setInitialMessages(Array.isArray(json.messages) ? json.messages : [])
+      } catch (e) {
+        if (!cancelled) {
+          setHistoryError(e instanceof Error ? e.message : "Failed to load history")
+          setInitialMessages([])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [chatId])
+
+  if (!chatId || !initialMessages) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
+        <div className="flex-none">
+          <h1 className="text-2xl font-semibold tracking-tight">Compliance</h1>
+          <p className="text-muted-foreground text-sm">Supervisor Agent powered by VoltAgent</p>
+        </div>
+        <Card className="flex flex-1 items-center justify-center">
+          <CardContent className="py-10 text-sm text-muted-foreground">
+            Initializing chat session…
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {historyError && (
+        <div className="mb-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+          Failed to load chat history: {historyError}
+        </div>
+      )}
+      <ComplianceChat chatId={chatId} setChatId={setChatId} initialMessages={initialMessages} />
+    </>
   )
 }
 

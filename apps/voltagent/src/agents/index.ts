@@ -23,3 +23,9 @@ export { accessibilityAgent } from "./compliance/accessibility-agent";
 export { visionTextAgent } from "./compliance/vision-text-agent";
 export { visionLogoAgent } from "./compliance/vision-logo-agent";
 export { visionImagePropertiesAgent } from "./compliance/vision-image-properties-agent";
+
+export { allInOneSupervisorAgent } from "./all-in-one/all-in-one-supervisor-agent";
+export { allInOneImageGeneratorAgent } from "./all-in-one/all-in-one-image-generator-agent";
+export { allInOneImageEditorAgent } from "./all-in-one/all-in-one-image-editor-agent";
+export { allInOneHiveModerationAgent } from "./all-in-one/all-in-one-hive-moderation-agent";
+export { allInOneOcrAgent } from "./all-in-one/all-in-one-ocr-agent";
