@@ -10,7 +10,11 @@ export const visionTextTool = createTool({
   description:
     "Detect and extract text from an image using Google Cloud Vision API (OCR). Returns full text and word/block annotations.",
   parameters: z.object({
-    imageUrl: z.string().describe("URL of the image to run text detection on"),
+    imageUrl: z
+      .string()
+      .describe(
+        "Image URL to run text detection on. Can be a public http(s) URL or a data: URL (base64) from an attached upload."
+      ),
   }),
   execute: async (args) => {
     const { imageUrl } = args;

@@ -9,9 +9,9 @@ import { visionLogoTool } from "../../tools";
 export const visionLogoAgent = new Agent({
   name: "vision-logo-agent",
   instructions: `
-Your only task: call visionLogo with the given image URL, then return a short summary of the detected logos.
+Your only task: call visionLogo with the given image reference (public http(s) URL or attached image as a data: URL), then return a short summary of the detected logos.
 
-Do nothing else. Output only a summary of which logos/brands were found (or that none were detected). If no image URL is provided, say so briefly and ask for it.
+Do nothing else. Output only a summary of which logos/brands were found (or that none were detected). If no image reference is provided, say so briefly and ask for an image or image URL.
 `,
   model: openai("gpt-5-mini"),
   tools: [visionLogoTool],

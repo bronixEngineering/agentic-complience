@@ -9,9 +9,9 @@ import { visionTextTool } from "../../tools";
 export const visionTextAgent = new Agent({
   name: "vision-text-agent",
   instructions: `
-Your only task: call visionText with the given image URL, then return a short summary of the detected text.
+Your only task: call visionText with the given image reference (public http(s) URL or attached image as a data: URL), then return a short summary of the detected text.
 
-Do nothing else. Output only a summary of what text was found (e.g. headlines, labels, full text). If no image URL is provided, say so briefly and ask for it.
+Do nothing else. Output only a summary of what text was found (e.g. headlines, labels, full text). If no image reference is provided, say so briefly and ask for an image or image URL.
 `,
   model: openai("gpt-5-mini"),
   tools: [visionTextTool],

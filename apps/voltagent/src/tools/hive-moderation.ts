@@ -35,10 +35,23 @@ export const hiveModerationTool = createTool({
   description:
     "Score image for risky content (NSFW, weapons, violence, etc.) via Hive categories for brand-safe publishing",
   parameters: z.object({
-    imageUrl: z.string().describe("URL of the image to moderate"),
+    imageUrl: z
+      .string()
+      .describe(
+        "Public http(s) URL of the image to moderate. Note: data: URLs from direct uploads are not supported by Hive."
+      ),
   }),
   execute: async (args): Promise<HiveSuccessResponse | { error: string; task_id?: null; output?: [] }> => {
     const { imageUrl } = args;
+
+    if (imageUrl.startsWith("data:")) {
+      return {
+        error:
+          "Hive moderation requires a public http(s) image URL. Please provide an image URL (uploads/data URLs are not supported for Hive).",
+        task_id: null,
+        output: [],
+      };
+    }
 
     let res: Response;
     try {

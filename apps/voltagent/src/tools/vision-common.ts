@@ -73,6 +73,23 @@ export async function visionAnnotate(
  * Görseli URL'den çekip base64 döndürür (Vision API için).
  */
 export async function fetchImageAsBase64(imageUrl: string): Promise<string> {
+  // Support Data URLs (e.g. from Vercel AI SDK file parts)
+  // data:[<mediatype>][;base64],<data>
+  if (imageUrl.startsWith("data:")) {
+    const comma = imageUrl.indexOf(",");
+    if (comma === -1) {
+      throw new Error("Invalid data URL (missing comma)");
+    }
+    const meta = imageUrl.slice(5, comma); // after "data:"
+    const data = imageUrl.slice(comma + 1);
+    const isBase64 = meta.split(";").includes("base64");
+    if (!isBase64) {
+      // Non-base64 data URLs are url-encoded.
+      return Buffer.from(decodeURIComponent(data), "utf8").toString("base64");
+    }
+    return data;
+  }
+
   const res = await fetch(imageUrl);
   if (!res.ok) {
     throw new Error(`Failed to fetch image: HTTP ${res.status}`);

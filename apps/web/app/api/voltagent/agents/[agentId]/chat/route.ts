@@ -23,11 +23,16 @@ export async function POST(
     }
 
     const body = await request.json();
-    // Vercel AI SDK sends { messages }; VoltAgent expects { input: messages, options? }
-    const voltagentBody =
-      Array.isArray(body?.messages) && body.messages !== undefined
-        ? { input: body.messages, options: body.options ?? {} }
-        : body;
+    // Vercel AI SDK sends { messages, ... }.
+    // VoltAgent expects { input: messages, ... }.
+    // Preserve additional fields (e.g. chat/session identifiers) if present.
+    const voltagentBody = Array.isArray(body?.messages)
+      ? (() => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { messages, ...rest } = body as { messages: unknown; [k: string]: unknown };
+          return { ...rest, input: body.messages };
+        })()
+      : body;
 
     const res = await fetch(`${VOLTAGENT_API_URL}/agents/${agentId}/chat`, {
       method: "POST",

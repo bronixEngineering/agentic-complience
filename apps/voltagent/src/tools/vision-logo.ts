@@ -10,7 +10,11 @@ export const visionLogoTool = createTool({
   description:
     "Detect logos (brands, products) in an image using Google Cloud Vision API. Returns logo names and locations.",
   parameters: z.object({
-    imageUrl: z.string().describe("URL of the image to run logo detection on"),
+    imageUrl: z
+      .string()
+      .describe(
+        "Image URL to run logo detection on. Can be a public http(s) URL or a data: URL (base64) from an attached upload."
+      ),
   }),
   execute: async (args) => {
     const { imageUrl } = args;

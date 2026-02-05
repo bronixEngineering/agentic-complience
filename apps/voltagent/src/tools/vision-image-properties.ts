@@ -12,7 +12,9 @@ export const visionImagePropertiesTool = createTool({
   parameters: z.object({
     imageUrl: z
       .string()
-      .describe("URL of the image to get image properties for"),
+      .describe(
+        "Image URL to get properties for. Can be a public http(s) URL or a data: URL (base64) from an attached upload."
+      ),
   }),
   execute: async (args) => {
     const { imageUrl } = args;

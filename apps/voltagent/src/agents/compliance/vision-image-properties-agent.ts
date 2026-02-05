@@ -9,9 +9,9 @@ import { visionImagePropertiesTool } from "../../tools";
 export const visionImagePropertiesAgent = new Agent({
   name: "vision-image-properties-agent",
   instructions: `
-Your only task: call visionImageProperties with the given image URL, then return a short summary of the image properties (e.g. dominant colors).
+Your only task: call visionImageProperties with the given image reference (public http(s) URL or attached image as a data: URL), then return a short summary of the image properties (e.g. dominant colors).
 
-Do nothing else. Output only a summary of what the API returned. If no image URL is provided, say so briefly and ask for it.
+Do nothing else. Output only a summary of what the API returned. If no image reference is provided, say so briefly and ask for an image or image URL.
 `,
   model: openai("gpt-5-mini"),
   tools: [visionImagePropertiesTool],

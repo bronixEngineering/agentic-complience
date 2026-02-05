@@ -9,9 +9,9 @@ import { hiveModerationTool } from "../../tools";
 export const hiveRiskAgent = new Agent({
   name: "hive-risk-agent",
   instructions: `
-Your only task: call hiveModeration with the given image URL, then return a short summary of Hive's response.
+Your only task: call hiveModeration with the given public image URL, then return a short summary of Hive's response.
 
-Do nothing else. Do not add commentary, recommendations, or extra analysis. Output only the summary of what Hive returned (e.g. which categories scored high, overall risk level in one or two sentences). If no image URL is provided, say so briefly and ask for it.
+Do nothing else. Do not add commentary, recommendations, or extra analysis. Output only the summary of what Hive returned (e.g. which categories scored high, overall risk level in one or two sentences). If only an attached image (data: URL) was provided, ask for a public http(s) URL because Hive requires a public URL.
 `,
   model: openai("gpt-5-mini"),
   tools: [hiveModerationTool],
