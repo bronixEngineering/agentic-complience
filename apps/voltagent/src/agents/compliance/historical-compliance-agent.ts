@@ -1,7 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
-import { historicalComplianceRagTool } from "../tools";
+import { sharedMemory } from "../../memory";
+import { historicalComplianceRagTool } from "../../tools";
 
 /**
  * Sub-agent: Searches past compliance cases (e.g. brand fines, ad violations) for similarity to avoid repeating mistakes.

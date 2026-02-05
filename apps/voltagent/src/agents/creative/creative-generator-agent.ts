@@ -1,7 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
-import { nanoBananaProTool } from "../tools";
+import { sharedMemory } from "../../memory";
+import { nanoBananaProTool } from "../../tools";
 
 /**
  * Creative generator agent
@@ -51,4 +51,3 @@ Fill in fields based on the brief (use sensible defaults when missing):
   tools: [nanoBananaProTool],
   memory: sharedMemory,
 });
-

@@ -1,6 +1,6 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
+import { sharedMemory } from "../../memory";
 
 /**
  * Persona: Performance Marketer
@@ -47,10 +47,9 @@ Build a production-ready prompt object using these keys. EVERY object MUST conta
 - Use clean composition with strong product placement and generous negative space.
 - Prefer simple backgrounds and high contrast subject/background separation.
 - Avoid overly artistic clutter; prioritize readability and product comprehension in <1s.
-- If the placement isn’t specified, bias to 4:5 (feed) composition that crops safely to 1:1.
+- If the placement isn't specified, bias to 4:5 (feed) composition that crops safely to 1:1.
 `,
   model: openai("gpt-5-mini"),
   tools: [],
   memory: sharedMemory,
 });
-

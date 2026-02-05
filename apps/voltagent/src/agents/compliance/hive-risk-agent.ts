@@ -1,7 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
-import { hiveModerationTool } from "../tools";
+import { sharedMemory } from "../../memory";
+import { hiveModerationTool } from "../../tools";
 
 /**
  * Sub-agent: Scores ad images for risky content (NSFW, weapons, violence, etc.) via Hive for brand-safe publishing.

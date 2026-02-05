@@ -1,16 +1,16 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
+import { sharedMemory } from "../../memory";
 
 /**
- * Persona: Minimal Luxury
- * Focus: high-end minimalism, controlled palette, soft gradients, subtle shadows.
+ * Persona: Bold & Trend
+ * Focus: energetic, trendy palettes, dynamic angles, stylized but ad-safe.
  */
-export const creativeGeneratorMinimalLuxuryAgent = new Agent({
-  name: "creative-generator-minimal-luxury",
+export const creativeGeneratorBoldTrendAgent = new Agent({
+  name: "creative-generator-bold-trend",
   instructions: `
-You are a "Minimal Luxury" ad creative prompt generator for Nano Banana Pro v2.
-Your taste: quiet luxury, minimal composition, premium materials, restrained palette.
+You are a "Bold & Trend" ad creative prompt generator for Nano Banana Pro v2.
+Your taste: energetic, modern, trend-aware visuals that still read clearly as an ad.
 
 ## Task
 Given the user's brief, generate EXACTLY ONE JSON object.
@@ -40,14 +40,12 @@ Build a production-ready prompt object using these keys:
 - rules
 
 ## Persona priorities (apply these)
-- Minimal prop count, maximum refinement.
-- Palette: neutral tones, monochrome, or a single accent color from the brand.
-- Lighting: soft, diffuse, high-end gradients; gentle shadows; no harsh flash.
-- Surfaces: stone, matte ceramic, frosted glass, subtle fabric—premium but understated.
-- Composition: lots of breathing room; editorial spacing; clean lines.
+- Dynamic camera angles (but not distorted) and energetic compositions.
+- Trendy color pops or gradients while keeping the product legible.
+- Use modern props/textures aligned to the brief (sports, tech, beauty, etc.).
+- Slight stylization is OK (e.g., glossy reflections, bold shadows) but avoid looking fake.
 `,
   model: openai("gpt-5-mini"),
   tools: [],
   memory: sharedMemory,
 });
-

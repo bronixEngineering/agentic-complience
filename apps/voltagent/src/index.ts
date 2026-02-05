@@ -20,7 +20,9 @@ import {
   platformPolicyAgent,
   accessibilityAgent,
   complianceAgent,
-
+  visionTextAgent,
+  visionLogoAgent,
+  visionImagePropertiesAgent,
 } from "./agents";
 
 // Create logger (optional but recommended)
@@ -49,7 +51,9 @@ new VoltAgent({
     platformPolicyAgent,
     accessibilityAgent,
     complianceAgent,
-
+    visionTextAgent,
+    visionLogoAgent,
+    visionImagePropertiesAgent,
   },
   workflows: {
     creativeFanoutWorkflow,

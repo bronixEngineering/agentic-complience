@@ -1,7 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
-import { platformPolicyTool } from "../tools";
+import { sharedMemory } from "../../memory";
+import { platformPolicyTool } from "../../tools";
 
 /**
  * Sub-agent: Checks ad compliance with Meta/Google ad policies (text overlay, prohibited content); returns score and issues.

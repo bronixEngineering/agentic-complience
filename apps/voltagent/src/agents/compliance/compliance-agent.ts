@@ -5,7 +5,7 @@ import {
   plagiarismCheckTool,
   reverseImageSearchTool,
   audioFingerprintTool,
-} from "../tools";
+} from "../../tools";
 
 export const complianceAgent = new Agent({
   name: "compliance-agent",

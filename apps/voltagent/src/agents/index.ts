@@ -1,22 +1,26 @@
 /**
- * Agents exports
- * Import and export all agents from this file for easy access
+ * Agents exports – grouped by folder: creative, compliance, enhancer
  */
 
-export { creativeGeneratorAgent } from "./creative-generator-agent";
-export { briefEnhancerAgent } from "./brief-enhancer-agent";
-export { creativeGeneratorPerformanceAgent } from "./creative-generator-performance-agent";
-export { creativeGeneratorArtDirectorAgent } from "./creative-generator-artdirector-agent";
-export { creativeGeneratorPackshotAgent } from "./creative-generator-packshot-agent";
-export { creativeGeneratorUgcAgent } from "./creative-generator-ugc-agent";
-export { creativeGeneratorMinimalLuxuryAgent } from "./creative-generator-minimal-luxury-agent";
-export { creativeGeneratorBoldTrendAgent } from "./creative-generator-bold-trend-agent";
-export { complianceSupervisorAgent } from "./compliance-supervisor-agent";
-export { imageToTextAgent } from "./image-to-text-agent";
-export { hiveRiskAgent } from "./hive-risk-agent";
-export { historicalComplianceAgent } from "./historical-compliance-agent";
-export { tavilySearchAgent } from "./tavily-search-agent";
-export { claimsCheckAgent } from "./claims-check-agent";
-export { platformPolicyAgent } from "./platform-policy-agent";
-export { accessibilityAgent } from "./accessibility-agent";
-export { complianceAgent } from "./compliance-agent";
+export { creativeGeneratorAgent } from "./creative/creative-generator-agent";
+export { creativeGeneratorArtDirectorAgent } from "./creative/creative-generator-artdirector-agent";
+export { creativeGeneratorBoldTrendAgent } from "./creative/creative-generator-bold-trend-agent";
+export { creativeGeneratorMinimalLuxuryAgent } from "./creative/creative-generator-minimal-luxury-agent";
+export { creativeGeneratorPackshotAgent } from "./creative/creative-generator-packshot-agent";
+export { creativeGeneratorPerformanceAgent } from "./creative/creative-generator-performance-agent";
+export { creativeGeneratorUgcAgent } from "./creative/creative-generator-ugc-agent";
+
+export { briefEnhancerAgent } from "./enhancer/brief-enhancer-agent";
+
+export { complianceSupervisorAgent } from "./compliance/compliance-supervisor-agent";
+export { complianceAgent } from "./compliance/compliance-agent";
+export { imageToTextAgent } from "./compliance/image-to-text-agent";
+export { hiveRiskAgent } from "./compliance/hive-risk-agent";
+export { historicalComplianceAgent } from "./compliance/historical-compliance-agent";
+export { tavilySearchAgent } from "./compliance/tavily-search-agent";
+export { claimsCheckAgent } from "./compliance/claims-check-agent";
+export { platformPolicyAgent } from "./compliance/platform-policy-agent";
+export { accessibilityAgent } from "./compliance/accessibility-agent";
+export { visionTextAgent } from "./compliance/vision-text-agent";
+export { visionLogoAgent } from "./compliance/vision-logo-agent";
+export { visionImagePropertiesAgent } from "./compliance/vision-image-properties-agent";

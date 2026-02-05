@@ -1,7 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
-import { imageToTextTool } from "../tools";
+import { sharedMemory } from "../../memory";
+import { imageToTextTool } from "../../tools";
 
 /**
  * Sub-agent: Extracts text from ad images (headlines, CTA, logo text) for downstream compliance checks.

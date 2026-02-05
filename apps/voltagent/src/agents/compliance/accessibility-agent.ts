@@ -1,7 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
-import { accessibilityTool } from "../tools";
+import { sharedMemory } from "../../memory";
+import { accessibilityTool } from "../../tools";
 
 /**
  * Sub-agent: Produces accessibility score (contrast, text amount, readability) and improvement suggestions.

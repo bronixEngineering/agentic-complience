@@ -1,7 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
-import { tavilySearchTool } from "../tools";
+import { sharedMemory } from "../../memory";
+import { tavilySearchTool } from "../../tools";
 
 /**
  * Sub-agent: Searches the web with text from the image; shows which sites/terms rank (reputation/context check).

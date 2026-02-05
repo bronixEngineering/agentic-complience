@@ -1,6 +1,6 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
+import { sharedMemory } from "../../memory";
 
 /**
  * Brief enhancer agent

@@ -18,3 +18,6 @@ export { trademarkSearchTool } from "./trademark-search";
 export { plagiarismCheckTool } from "./plagiarism-check";
 export { reverseImageSearchTool } from "./reverse-image-search";
 export { audioFingerprintTool } from "./audio-fingerprint";
+export { visionTextTool } from "./vision-text";
+export { visionLogoTool } from "./vision-logo";
+export { visionImagePropertiesTool } from "./vision-image-properties";

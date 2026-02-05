@@ -1,7 +1,7 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
-import { sharedMemory } from "../memory";
-import { claimsCheckTool } from "../tools";
+import { sharedMemory } from "../../memory";
+import { claimsCheckTool } from "../../tools";
 
 /**
  * Sub-agent: Detects health, financial, performance or superlative claims; suggests disclaimer/substantiation and risk level.
