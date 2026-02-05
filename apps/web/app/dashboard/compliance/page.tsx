@@ -189,7 +189,11 @@ export default function CompliancePage() {
   // Auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+        requestAnimationFrame(() => {
+            if (scrollRef.current) {
+                scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+            }
+        })
     }
   }, [messages, status])
 
@@ -219,8 +223,8 @@ export default function CompliancePage() {
   }
 
   return (
-    // Height calculation: 100vh - 4rem (header) - 2rem (padding) = calc(100vh - 6rem)
-    <div className="flex h-[calc(100vh-6rem)] flex-col gap-4">
+    // Height calculation: 100vh - 4rem (header) - 2rem (padding) - 2rem (extra buffer) = calc(100vh - 8rem)
+    <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
       <div className="flex-none">
         <h1 className="text-2xl font-semibold tracking-tight">Compliance</h1>
         <p className="text-muted-foreground text-sm">
@@ -243,11 +247,11 @@ export default function CompliancePage() {
           </div>
         </CardHeader>
 
-        <CardContent className="flex flex-1 flex-col p-0">
-          <div className="flex flex-1 flex-col overflow-hidden bg-background">
+        <CardContent className="flex flex-1 flex-col overflow-hidden min-h-0 p-0">
+          <div className="flex flex-1 flex-col overflow-hidden min-h-0 bg-background">
             <div 
               ref={scrollRef}
-              className="flex-1 min-h-0 overflow-y-auto p-6 scroll-smooth"
+              className="flex-1 min-h-0 overflow-y-auto p-6"
             >
               {messages.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
@@ -299,7 +303,7 @@ export default function CompliancePage() {
               )}
             </div>
 
-            <div className="border-t bg-background/50 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <div className="flex-none border-t bg-background/50 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
               <form onSubmit={handleSubmit} className="mx-auto flex max-w-3xl gap-2">
                 <div className="relative flex min-w-0 flex-1 items-center gap-2 rounded-md border bg-background px-3 shadow-sm focus-within:ring-1 focus-within:ring-ring">
                    <div 
