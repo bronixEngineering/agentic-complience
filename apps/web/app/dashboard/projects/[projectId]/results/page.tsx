@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowLeft, Download, ExternalLink, Loader2, RefreshCw, Check, Paintbrush, X, Eye } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useWorkflowState } from "@/hooks/useWorkflowState";
 
 interface ImageData {
   id?: string;
@@ -24,78 +24,52 @@ export default function ResultsPage() {
   const router = useRouter();
   const projectId = params.projectId as string;
 
+  const {
+    isLoading: workflowLoading,
+    status,
+    images: workflowImages,
+    currentStep,
+    shouldRedirect,
+  } = useWorkflowState(projectId);
+
   const [images, setImages] = useState<ImageData[]>([]);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<ImageData | null>(null);
-  const [isGenerating, setIsGenerating] = useState(true); // Start as true for immediate loading UI
+  const [isGenerating, setIsGenerating] = useState(true);
   const [generationMessage, setGenerationMessage] = useState<string>("Preparing your images...");
   const [isSuccessInfo, setIsSuccessInfo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Handle workflow state changes
   useEffect(() => {
-    // Single fetch on mount - no continuous polling
-    // Approval page handles waiting for workflow completion
-    async function fetchResults() {
-      try {
-        const res = await fetch(`/api/nanobanana/status?projectId=${projectId}`);
-        if (!res.ok) {
-          throw new Error("Failed to fetch results");
-        }
-        const data = await res.json();
+    if (workflowLoading) return;
 
-        // Check for images
-        if (data.images && data.images.length > 0) {
-          setImages(data.images);
-          setIsGenerating(false);
-          setIsLoading(false);
-          return;
-        }
-
-        // Handle different statuses
-        if (data.status === "completed") {
-          setIsSuccessInfo(true);
-          setError("Generation completed. You can see results in the All Images section.");
-          setIsGenerating(false);
-          setIsLoading(false);
-          return;
-        } 
-        
-        if (data.status === "suspended") {
-          // Redirect to approval page
-          router.replace(`/dashboard/projects/${projectId}/approval`);
-          return;
-        } 
-        
-        if (data.status === "running") {
-          // Still running - shouldn't happen if approval page waited properly
-          // Show loading and do one retry
-          setIsGenerating(true);
-          setIsLoading(false);
-          setGenerationMessage("Finishing up...");
-          return;
-        } 
-        
-        if (data.status === "none") {
-          router.replace(`/dashboard/projects/${projectId}`);
-          return;
-        }
-
-        // Unknown state
-        setError("Unable to load results. Please try refreshing.");
-        setIsGenerating(false);
-        setIsLoading(false);
-
-      } catch (err) {
-        console.error("Error fetching results:", err);
-        setError("Failed to load results. Please try again.");
-        setIsGenerating(false);
-        setIsLoading(false);
-      }
+    // If workflow has images, use them
+    if (workflowImages && workflowImages.length > 0) {
+      setImages(workflowImages);
+      setIsGenerating(false);
+      return;
     }
 
-    fetchResults();
-  }, [projectId, router]);
+    // Handle different statuses
+    if (status === "completed") {
+      setIsSuccessInfo(true);
+      setError("Generation completed. You can see results in the All Images section.");
+      setIsGenerating(false);
+      return;
+    }
+
+    if (status === "running") {
+      setIsGenerating(true);
+      setGenerationMessage("Finishing up...");
+      return;
+    }
+
+    // For suspended or none, the workflow guard will handle redirect
+    if (status === "suspended" || status === "none") {
+      setIsGenerating(false);
+    }
+  }, [workflowLoading, status, workflowImages]);
 
   const handleEdit = (imageId: string) => {
     router.push(`/dashboard/projects/${projectId}/edit-image/${imageId}`);
@@ -154,7 +128,7 @@ export default function ResultsPage() {
     );
   }
 
-  if (isLoading) {
+  if (workflowLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="flex flex-col items-center gap-4">

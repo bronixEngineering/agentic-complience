@@ -6,13 +6,13 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
   ArrowLeft,
-  BadgeCheck,
   FileText,
   CheckCircle,
   Sparkles,
   Images,
   Clock,
   Edit3,
+  Loader2,
 } from "lucide-react"
 
 import {
@@ -25,24 +25,26 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import { useWorkflowState, WorkflowStep } from "@/hooks/useWorkflowState"
+import { cn } from "@/lib/utils"
 
 const workflowItems = [
   { 
-    key: "brief", 
+    key: "brief" as WorkflowStep, 
     label: "Create Brief", 
     icon: FileText, 
     href: "",
     description: "Write your creative brief"
   },
   { 
-    key: "approval", 
+    key: "approval" as WorkflowStep, 
     label: "Review Brief", 
     icon: CheckCircle, 
     href: "/approval",
     description: "Review AI-enhanced brief"
   },
   { 
-    key: "results", 
+    key: "results" as WorkflowStep, 
     label: "Results", 
     icon: Sparkles, 
     href: "/results",
@@ -77,15 +79,15 @@ const projectItems = [
 export function ProjectSidebar({
   projectId,
   projectName,
-  activePhase = "brief",
-  completedSteps = [],
 }: {
   projectId: string
   projectName?: string
-  activePhase?: string
-  completedSteps?: string[]
 }) {
   const pathname = usePathname()
+  const { isLoading, status, currentStep } = useWorkflowState(projectId)
+  
+  // Define workflow order for completion checking
+  const workflowOrder: WorkflowStep[] = ['brief', 'approval', 'results']
 
   // Determine active item from pathname
   const getActiveKey = () => {
@@ -100,16 +102,21 @@ export function ProjectSidebar({
 
   const activeKey = getActiveKey()
   
-  // Define workflow order
-  const workflowOrder = ['brief', 'approval', 'results']
-  
-  // Check if a step is completed based on current page
-  const isStepCompleted = (stepKey: string) => {
-    const currentIndex = workflowOrder.indexOf(activeKey)
+  // Check if a step is completed based on workflow status
+  const isStepCompleted = (stepKey: WorkflowStep): boolean => {
+    if (isLoading) return false
+    
+    const currentIndex = workflowOrder.indexOf(currentStep)
     const stepIndex = workflowOrder.indexOf(stepKey)
     
-    // A step is completed if it comes before the current active step in the workflow
+    // A step is completed if it comes before the current step in the workflow
     return stepIndex !== -1 && currentIndex !== -1 && stepIndex < currentIndex
+  }
+  
+  // Check if step is currently active (running)
+  const isStepRunning = (stepKey: WorkflowStep): boolean => {
+    if (isLoading) return false
+    return currentStep === stepKey && status === 'running'
   }
 
   return (
@@ -152,11 +159,23 @@ export function ProjectSidebar({
         <div className="px-2 py-2">
           <div className="px-2 pb-2 text-xs font-medium text-muted-foreground group-data-[collapsible=icon]:hidden">
             Workflow
+            {status === 'running' && (
+              <span className="ml-2 inline-flex items-center gap-1 text-primary">
+                <Loader2 className="size-3 animate-spin" />
+                <span>Processing</span>
+              </span>
+            )}
+            {status === 'suspended' && (
+              <span className="ml-2 text-amber-500">
+                • Awaiting Review
+              </span>
+            )}
           </div>
           <SidebarMenu>
             {workflowItems.map((item) => {
               const isActive = activeKey === item.key
               const isCompleted = isStepCompleted(item.key)
+              const isRunning = isStepRunning(item.key)
               const href = `/dashboard/projects/${projectId}${item.href}`
               
               return (
@@ -167,10 +186,15 @@ export function ProjectSidebar({
                     tooltip={item.description}
                   >
                     <Link href={href}>
-                      <item.icon />
+                      <item.icon className={cn(
+                        isRunning && "text-primary"
+                      )} />
                       <span>{item.label}</span>
                       {isCompleted && (
                         <CheckCircle className="ml-auto size-4 text-green-500" />
+                      )}
+                      {isRunning && (
+                        <Loader2 className="ml-auto size-4 animate-spin text-primary" />
                       )}
                     </Link>
                   </SidebarMenuButton>
@@ -214,4 +238,3 @@ export function ProjectSidebar({
     </Sidebar>
   )
 }
-

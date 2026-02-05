@@ -64,7 +64,7 @@ export default function DashboardShell({
   const isProjectDetail = pathname.startsWith("/dashboard/projects/")
   const projectId = isProjectDetail ? pathname.split("/")[3] : undefined
   
-  const { projectName, loading: projectLoading, completedSteps } = useProject(projectId)
+  const { projectName, loading: projectLoading } = useProject(projectId)
   const crumbs = breadcrumbForPath(pathname, projectName)
 
   const handleSignOut = () => {
@@ -79,7 +79,6 @@ export default function DashboardShell({
         <ProjectSidebar 
           projectId={projectId} 
           projectName={projectName ?? undefined}
-          completedSteps={completedSteps}
         />
       ) : (
         <AppSidebar />

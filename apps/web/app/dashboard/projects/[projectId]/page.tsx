@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/server"
 import { ProjectBriefForm } from "./ProjectBriefForm"
+import { WorkflowBlocker } from "@/components/WorkflowBlocker"
 
 export default async function ProjectDetailPage({
   params,
@@ -34,9 +35,8 @@ export default async function ProjectDetailPage({
     .single();
 
   // Redirect to appropriate page based on execution status
-  // Redirect to appropriate page based on execution status
   if (latestExecution) {
-    if (latestExecution.status === "completed" || latestExecution.status === "running" || latestExecution.status === "failed") {
+    if (latestExecution.status === "running") {
       redirect(`/dashboard/projects/${projectId}/results`);
     }
 
@@ -72,10 +72,12 @@ export default async function ProjectDetailPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ProjectBriefForm
-            projectId={projectId}
-            initialBrief={(project.meta as { brief?: unknown } | null)?.brief as any}
-          />
+          <WorkflowBlocker projectId={projectId}>
+            <ProjectBriefForm
+              projectId={projectId}
+              initialBrief={(project.meta as { brief?: unknown } | null)?.brief as any}
+            />
+          </WorkflowBlocker>
         </CardContent>
       </Card>
 
