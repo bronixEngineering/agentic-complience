@@ -13,7 +13,6 @@ export { creativeGeneratorUgcAgent } from "./creative/creative-generator-ugc-age
 export { briefEnhancerAgent } from "./enhancer/brief-enhancer-agent";
 
 export { complianceSupervisorAgent } from "./compliance/compliance-supervisor-agent";
-export { complianceAgent } from "./compliance/compliance-agent";
 export { imageToTextAgent } from "./compliance/image-to-text-agent";
 export { hiveRiskAgent } from "./compliance/hive-risk-agent";
 export { historicalComplianceAgent } from "./compliance/historical-compliance-agent";

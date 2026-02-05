@@ -35,6 +35,9 @@ function breadcrumbForPath(pathname: string, projectName?: string | null) {
   if (pathname.startsWith("/dashboard/workflow")) {
     return { parent: "Dashboard", page: "Workflow" }
   }
+  if (pathname.startsWith("/dashboard/compliance")) {
+    return { parent: "Dashboard", page: "Compliance" }
+  }
   if (pathname.startsWith("/dashboard/ads/new")) {
     return { parent: "Dashboard", page: "Project Canvas" }
   }
