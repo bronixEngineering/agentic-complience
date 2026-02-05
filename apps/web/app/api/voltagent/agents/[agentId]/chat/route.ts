@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+
+export const runtime = "nodejs";
 
 const rawUrl = process.env.VOLTAGENT_API_URL || "http://localhost:3141";
 const VOLTAGENT_API_URL = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
+
+const UPLOAD_BUCKET = process.env.SUPABASE_UPLOADS_BUCKET ?? "chat_uploads";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function POST(
   request: Request,
@@ -16,6 +23,15 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // For Storage uploads, prefer a server-side service role client (bypasses Storage RLS).
+    // This avoids "new row violates row-level security policy" on storage.objects inserts.
+    const adminSupabase =
+      SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+        ? createAdminClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          })
+        : null;
 
     const { agentId } = await params;
     if (!agentId) {
@@ -57,9 +73,122 @@ export async function POST(
       return typeof maybeConversationId === "string" ? maybeConversationId : undefined;
     })();
 
+    const messageId = (() => {
+      if (isJsonRecord(body) && typeof body["messageId"] === "string") return body["messageId"];
+      return undefined;
+    })();
+
+    const decodeDataUrl = (dataUrl: string): { bytes: Uint8Array; contentType: string } => {
+      // data:[<mediatype>][;base64],<data>
+      const comma = dataUrl.indexOf(",");
+      if (comma === -1) throw new Error("Invalid data URL (missing comma)");
+      const meta = dataUrl.slice(5, comma); // after "data:"
+      const data = dataUrl.slice(comma + 1);
+      const metaParts = meta.split(";").filter(Boolean);
+      const contentType = metaParts[0] && !metaParts[0].includes("/") ? "application/octet-stream" : metaParts[0] || "application/octet-stream";
+      const isBase64 = metaParts.includes("base64");
+      const buf = isBase64
+        ? Buffer.from(data, "base64")
+        : Buffer.from(decodeURIComponent(data), "utf8");
+      return { bytes: new Uint8Array(buf), contentType };
+    };
+
+    const guessExtension = (contentType: string) => {
+      const map: Record<string, string> = {
+        "image/jpeg": "jpg",
+        "image/jpg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/gif": "gif",
+        "application/pdf": "pdf",
+      };
+      return map[contentType.toLowerCase()] ?? "bin";
+    };
+
+    const safe = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+
+    const uploadIfDataUrl = async (part: JsonRecord) => {
+      if (part["type"] !== "file") return part;
+      const url = part["url"];
+      if (typeof url !== "string" || !url.startsWith("data:")) return part;
+
+      const { bytes, contentType } = decodeDataUrl(url);
+      const mediaType =
+        typeof part["mediaType"] === "string" && part["mediaType"]
+          ? (part["mediaType"] as string)
+          : contentType;
+
+      const filename =
+        typeof part["filename"] === "string" && part["filename"]
+          ? (part["filename"] as string)
+          : `upload.${guessExtension(mediaType)}`;
+
+      const conv = conversationId ?? "no-conversation";
+      const msg = messageId ?? "no-message";
+      const objectPath = `voltagent/${safe(user.id)}/${safe(conv)}/${safe(msg)}/${safe(filename)}`;
+
+      const storageClient = (adminSupabase ?? supabase).storage;
+      const { error: uploadError } = await storageClient.from(UPLOAD_BUCKET).upload(objectPath, bytes, {
+        contentType: mediaType,
+        upsert: true,
+      });
+
+      if (uploadError) {
+        const hint = adminSupabase
+          ? ""
+          : " (Hint: set SUPABASE_SERVICE_ROLE_KEY in apps/web/.env.local to bypass Storage RLS)";
+        throw new Error(`Storage upload failed: ${uploadError.message}${hint}`);
+      }
+
+      const { data } = storageClient.from(UPLOAD_BUCKET).getPublicUrl(objectPath);
+      const publicUrl = data?.publicUrl;
+      if (!publicUrl) {
+        throw new Error("Storage upload succeeded but public URL is missing");
+      }
+
+      return {
+        ...part,
+        url: publicUrl,
+        mediaType,
+        filename,
+      };
+    };
+
+    const rewriteMessagePartsToUrls = async (input: unknown) => {
+      if (!Array.isArray(input)) return input;
+
+      const rewritten = [];
+      for (const m of input) {
+        if (!isJsonRecord(m)) {
+          rewritten.push(m);
+          continue;
+        }
+        const parts = m["parts"];
+        if (!Array.isArray(parts)) {
+          rewritten.push(m);
+          continue;
+        }
+
+        const nextParts = [];
+        for (const p of parts) {
+          if (isJsonRecord(p)) {
+            nextParts.push(await uploadIfDataUrl(p));
+          } else {
+            nextParts.push(p);
+          }
+        }
+
+        rewritten.push({ ...m, parts: nextParts });
+      }
+      return rewritten;
+    };
+
     const voltagentBodyWithOptions = isJsonRecord(voltagentBody)
       ? {
           ...voltagentBody,
+          ...(Array.isArray(voltagentBody["input"])
+            ? { input: await rewriteMessagePartsToUrls(voltagentBody["input"]) }
+            : {}),
           options: {
             ...(existingOptions ?? {}),
             userId: user.id,

@@ -91,6 +91,7 @@ new VoltAgent({
     imageEditingWorkflow,
   },
   server: honoServer({
+    
     resumableStream: {
       adapter: resumableStream,
       defaultEnabled: true,

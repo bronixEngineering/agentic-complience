@@ -12,6 +12,7 @@ import {
   creativeGeneratorUgcAgent,
 } from "../agents";
 import { nanoBananaProTool } from "../tools";
+import { sharedMemory } from "../memory";
 
 const personaIds = [
   "creative-generator-performance",
@@ -245,6 +246,7 @@ function normalizePrompt(prompt: string | Record<string, unknown>): string {
 export const creativeFanoutWorkflow = createWorkflowChain({
   id: "creative-fanout",
   name: "Creative Fan-out (Enhance → Suspend/Resume → Personas)",
+  memory: sharedMemory,
   purpose:
     "Enhance a messy ad brief, suspend for clarifications if needed, then fan-out to persona creative agents to generate Nano Banana prompt JSONs.",
   input: z.object({

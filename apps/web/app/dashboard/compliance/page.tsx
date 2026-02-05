@@ -1,15 +1,12 @@
 "use client"
 
 import { useMemo, useRef, useState, useEffect } from "react"
-import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, isFileUIPart, isTextUIPart, type UIMessage } from "ai"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { SendHorizontal, Paperclip, Bot, User, CheckCircle2, ChevronDown, ChevronRight, Terminal } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import { Skeleton } from "@/components/ui/skeleton"
+import { SendHorizontal, Paperclip, Bot, User, ChevronDown, ChevronRight, Terminal } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Collapsible,
   CollapsibleContent,
@@ -17,9 +14,10 @@ import {
 } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
 
-const AGENT_ID = "compliance-supervisor-agent"
+const AGENT_ID = "all-in-one-supervisor-agent"
 const CHAT_API = `/api/voltagent/agents/${AGENT_ID}/chat`
 const CHAT_ID_STORAGE_KEY = `chatId:${AGENT_ID}`
+const STREAM_API = `/api/voltagent/agents/${AGENT_ID}/stream`
 
 function getMessageText(m: UIMessage | { content?: string }): string {
   // Back-compat: some streams still expose `content`
@@ -36,24 +34,36 @@ function getMessageText(m: UIMessage | { content?: string }): string {
 function getToolInvocations(m: UIMessage) {
   if (!("parts" in m) || !Array.isArray(m.parts)) return []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return m.parts.filter((p) => p.type === "tool-invocation") as any[]
+  return m.parts.filter((p) => p && (p as any).type === "tool-invocation") as any[]
 }
 
 function ExecutionTimeline({ tools }: { tools: any[] }) {
-  const [isOpen, setIsOpen] = useState(false)
+  // If the user hasn't toggled anything, we auto-open while tools are running.
+  const [manualOpen, setManualOpen] = useState<boolean | null>(null)
   
   // If no tools, we show a default "Direct Response" trace
   const hasTools = tools && tools.length > 0
-  const steps = hasTools ? tools : [{ toolName: "Direct Response", state: "result", result: "Generated text response" }]
+  const steps = (
+    hasTools ? tools : [{ toolName: "Direct Response", state: "result", result: "Generated text response" }]
+  ).filter(Boolean)
+
+  const hasRunningStep = steps.some((s) => s?.state && s.state !== "result")
+  const isOpen = manualOpen ?? hasRunningStep
 
   return (
     <div className="mt-2 w-full max-w-full">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full space-y-2">
+      <Collapsible
+        open={isOpen}
+        onOpenChange={(next) => setManualOpen(next)}
+        className="w-full space-y-2"
+      >
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm" className="flex h-8 w-full items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 text-xs font-normal text-muted-foreground hover:bg-muted/50">
             <div className="flex items-center gap-2">
               <Terminal className="h-3.5 w-3.5" />
-              <span>Execution Timeline ({steps.length} steps)</span>
+              <span>
+                Execution Timeline ({steps.length} steps){hasRunningStep ? " • running" : ""}
+              </span>
             </div>
             {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </Button>
@@ -67,19 +77,24 @@ function ExecutionTimeline({ tools }: { tools: any[] }) {
                   <div className="relative z-10 flex h-2.5 w-2.5 shrink-0 items-center justify-center rounded-full bg-primary ring-4 ring-background" />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-foreground">{tool.toolName}</span>
+                      <span className="font-mono text-[11px] font-medium text-foreground">
+                        {tool?.toolName ?? "Tool"}
+                      </span>
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal uppercase opacity-70">
-                        {tool.state === "result" ? "Completed" : "Running"}
+                        {tool?.state === "result" ? "Completed" : "Running"}
                       </Badge>
                     </div>
                     {/* Show args if available */}
-                    {tool.args && (
-                      <div className="overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground opacity-80">
-                         Args: {JSON.stringify(tool.args).slice(0, 60)}...
+                    {tool?.args && (
+                      <div className="mt-1 rounded bg-muted/50 p-2 font-mono text-[10px] text-muted-foreground">
+                        <div className="mb-1 text-[9px] uppercase tracking-wider opacity-50">Args</div>
+                        <div className="line-clamp-3 break-all">
+                          {typeof tool.args === "string" ? tool.args : JSON.stringify(tool.args)}
+                        </div>
                       </div>
                     )}
                      {/* Show result if available */}
-                    {tool.state === "result" && tool.result && (
+                    {tool?.state === "result" && tool?.result && (
                        <div className="mt-1 rounded bg-muted/50 p-2 font-mono text-[10px] text-muted-foreground">
                          <div className="mb-1 text-[9px] uppercase tracking-wider opacity-50">Result</div>
                          <div className="line-clamp-3 overflow-hidden text-ellipsis">
@@ -199,6 +214,22 @@ function ComplianceChat({
   const [hasFile, setHasFile] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [messages, setMessages] = useState<UIMessage[]>(initialMessages)
+  const [status, setStatus] = useState<"ready" | "submitted" | "streaming" | "error">("ready")
+  const [streamError, setStreamError] = useState<string | null>(null)
+  const [livePhase, setLivePhase] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    setMessages(initialMessages)
+  }, [initialMessages])
+
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount to avoid stream writing after close.
+      abortRef.current?.abort("unmount")
+    }
+  }, [])
 
   const [copied, setCopied] = useState(false)
   const copyChatId = async () => {
@@ -221,36 +252,277 @@ function ComplianceChat({
     setChatId(created)
   }
 
-  const transport = useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: CHAT_API,
-        prepareSendMessagesRequest: ({ id, messages, trigger, messageId }) => ({
-          body: {
-            id,
-            messages,
-            trigger,
-            messageId,
-          },
-        }),
-        prepareReconnectToStreamRequest: ({ id }) => ({
-          api: `/api/voltagent/agents/${AGENT_ID}/chat/${id}/stream`,
-        }),
-      }),
-    []
-  )
-
-  const { messages, sendMessage, status } = useChat({
-    id: chatId,
-    messages: initialMessages,
-    resume: true,
-    transport,
-    onError: (error) => {
-      console.error("Chat error:", error)
-    }
-  })
+  // Keep transport around for potential future use (chat-compatible endpoint),
+  // but tool traces are streamed from /stream below for live visibility.
+  useMemo(() => new DefaultChatTransport({ api: CHAT_API }), [])
 
   const isLoading = status === "submitted" || status === "streaming"
+
+  const createMessageId = () =>
+    typeof window.crypto?.randomUUID === "function"
+      ? window.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(new Error("Failed to read file"))
+      reader.readAsDataURL(file)
+    })
+
+  const upsertAssistantText = (parts: any[], appendText: string) => {
+    const next = Array.isArray(parts) ? [...parts] : []
+    const idx = next.findIndex((p) => p?.type === "text")
+    if (idx === -1) {
+      next.unshift({ type: "text", text: appendText })
+    } else {
+      next[idx] = { ...next[idx], text: String(next[idx]?.text ?? "") + appendText }
+    }
+    return next
+  }
+
+  const upsertToolInvocation = (
+    parts: any[],
+    invocation: {
+      toolCallId: string
+      toolName: string
+      args?: unknown
+      state: "call" | "result"
+      result?: unknown
+      errorText?: string
+    }
+  ) => {
+    const next = Array.isArray(parts) ? [...parts] : []
+    const idx = next.findIndex(
+      (p) => p?.type === "tool-invocation" && p?.toolCallId === invocation.toolCallId
+    )
+    const payload = {
+      type: "tool-invocation",
+      toolCallId: invocation.toolCallId,
+      toolName: invocation.toolName,
+      ...(invocation.args !== undefined ? { args: invocation.args } : {}),
+      state: invocation.state,
+      ...(invocation.result !== undefined ? { result: invocation.result } : {}),
+      ...(invocation.errorText ? { errorText: invocation.errorText } : {}),
+    }
+    if (idx === -1) next.push(payload)
+    else next[idx] = { ...next[idx], ...payload }
+    return next
+  }
+
+  const sendLiveMessage = async ({
+    text,
+    files,
+  }: {
+    text?: string
+    files?: FileList
+  }) => {
+    setStreamError(null)
+    setLivePhase(null)
+    setStatus("submitted")
+
+    // Abort any previous in-flight stream.
+    abortRef.current?.abort("new request")
+    const abort = new AbortController()
+    abortRef.current = abort
+
+    const parts: any[] = []
+    const trimmed = (text ?? "").trim()
+    if (trimmed) parts.push({ type: "text", text: trimmed })
+
+    if (files && files.length > 0) {
+      const dataUrls = await Promise.all(Array.from(files).map(fileToDataUrl))
+      Array.from(files).forEach((f, i) => {
+        parts.push({
+          type: "file",
+          url: dataUrls[i],
+          mediaType: f.type || "application/octet-stream",
+          filename: f.name,
+        })
+      })
+    }
+
+    const userMessage: UIMessage = {
+      id: createMessageId(),
+      role: "user",
+      parts,
+    }
+
+    const assistantMessageId = createMessageId()
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      { id: assistantMessageId, role: "assistant", parts: [{ type: "text", text: "" }] } as UIMessage,
+    ])
+
+    const res = await fetch(STREAM_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: chatId,
+        messageId: userMessage.id,
+        messages: [userMessage],
+      }),
+      signal: abort.signal,
+    })
+
+    if (!res.ok || !res.body) {
+      const errText = await res.text().catch(() => "")
+      setStatus("error")
+      setStreamError(errText || `Stream failed (HTTP ${res.status})`)
+      return
+    }
+
+    setStatus("streaming")
+    setLivePhase("Thinking…")
+
+    const reader = res.body.getReader()
+    const dec = new TextDecoder()
+    let buf = ""
+
+    const applyToAssistant = (fn: (parts: any[]) => any[]) => {
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== assistantMessageId) return m
+          return { ...m, parts: fn((m as any).parts) }
+        })
+      )
+    }
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+
+        while (true) {
+          const sep = buf.indexOf("\n\n")
+          if (sep === -1) break
+          const rawEvent = buf.slice(0, sep)
+          buf = buf.slice(sep + 2)
+
+          const dataLines = rawEvent
+            .split("\n")
+            .filter((l) => l.startsWith("data: "))
+            .map((l) => l.slice(6))
+          if (dataLines.length === 0) continue
+
+          const dataStr = dataLines.join("\n")
+          if (!dataStr || dataStr === "[DONE]") continue
+
+          let evt: any
+          try {
+            evt = JSON.parse(dataStr)
+          } catch {
+            continue
+          }
+
+          switch (evt?.type) {
+            case "start":
+            case "start-step": {
+              setLivePhase("Thinking…")
+              break
+            }
+            case "text-delta": {
+              const delta = typeof evt.text === "string" ? evt.text : ""
+              if (delta) {
+                setLivePhase("Responding…")
+                applyToAssistant((p) => upsertAssistantText(p, delta))
+              }
+              break
+            }
+            case "tool-call": {
+              const toolCallId = String(evt.toolCallId || "")
+              const toolName = String(evt.toolName || "tool")
+              if (toolCallId) {
+                setLivePhase(
+                  toolName === "delegate_task"
+                    ? "Delegating task…"
+                    : `Calling tool: ${toolName}…`
+                )
+                applyToAssistant((p) =>
+                  upsertToolInvocation(p, {
+                    toolCallId,
+                    toolName,
+                    args: evt.input,
+                    state: "call",
+                  })
+                )
+              }
+              break
+            }
+            case "tool-result": {
+              const toolCallId = String(evt.toolCallId || "")
+              const toolName = String(evt.toolName || "tool")
+              if (toolCallId) {
+                setLivePhase(
+                  toolName === "delegate_task"
+                    ? "Delegate completed"
+                    : `Tool completed: ${toolName}`
+                )
+                applyToAssistant((p) =>
+                  upsertToolInvocation(p, {
+                    toolCallId,
+                    toolName,
+                    args: evt.input,
+                    state: "result",
+                    result: evt.output,
+                  })
+                )
+              }
+              break
+            }
+            case "tool-error": {
+              const toolCallId = String(evt.toolCallId || "")
+              const toolName = String(evt.toolName || "tool")
+              if (toolCallId) {
+                setLivePhase(`Tool error: ${toolName}`)
+                applyToAssistant((p) =>
+                  upsertToolInvocation(p, {
+                    toolCallId,
+                    toolName,
+                    args: evt.input,
+                    state: "result",
+                    result: evt.error,
+                    errorText: "tool-error",
+                  })
+                )
+              }
+              break
+            }
+            case "error": {
+              setStreamError("Stream error")
+              setLivePhase("Error")
+              break
+            }
+            case "finish": {
+              // nothing special; we'll set ready when stream ends
+              setLivePhase(null)
+              break
+            }
+          }
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (abort.signal.aborted) {
+        // ignore abort errors (navigation, refresh, new request)
+      } else {
+        setStreamError(msg || "Stream error")
+        setStatus("error")
+      }
+    } finally {
+      try {
+        await reader.cancel()
+      } catch {
+        // ignore
+      }
+      setStatus("ready")
+      setLivePhase(null)
+      if (abortRef.current === abort) abortRef.current = null
+    }
+  }
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -272,9 +544,9 @@ function ComplianceChat({
     if (!text && (!files || files.length === 0)) return
 
     if (files && files.length > 0) {
-      sendMessage(text ? { text, files } : { files })
+      void sendLiveMessage(text ? { text, files } : { files })
     } else {
-      sendMessage({ text })
+      void sendLiveMessage({ text })
     }
     
     setInput("")
@@ -357,10 +629,17 @@ function ComplianceChat({
                        <Avatar className="h-8 w-8">
                          <AvatarFallback className="bg-muted"><Bot className="h-4 w-4" /></AvatarFallback>
                        </Avatar>
-                       <div className="flex items-center gap-1 rounded-2xl rounded-tl-none border bg-muted/50 px-4 py-3">
-                         <div className="h-2 w-2 animate-bounce rounded-full bg-primary/40 [animation-delay:-0.3s]"></div>
-                         <div className="h-2 w-2 animate-bounce rounded-full bg-primary/40 [animation-delay:-0.15s]"></div>
-                         <div className="h-2 w-2 animate-bounce rounded-full bg-primary/40"></div>
+                       <div className="flex items-center gap-3 rounded-2xl rounded-tl-none border bg-muted/50 px-4 py-3">
+                         <div className="flex items-center gap-1">
+                           <div className="h-2 w-2 animate-bounce rounded-full bg-primary/40 [animation-delay:-0.3s]"></div>
+                           <div className="h-2 w-2 animate-bounce rounded-full bg-primary/40 [animation-delay:-0.15s]"></div>
+                           <div className="h-2 w-2 animate-bounce rounded-full bg-primary/40"></div>
+                         </div>
+                         {livePhase && (
+                           <span className="text-xs text-muted-foreground font-mono">
+                             {livePhase}
+                           </span>
+                         )}
                        </div>
                      </div>
                   )}
