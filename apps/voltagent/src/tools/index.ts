@@ -19,3 +19,4 @@ export { audioFingerprintTool } from "./audio-fingerprint";
 export { visionTextTool } from "./vision-text";
 export { visionLogoTool } from "./vision-logo";
 export { visionImagePropertiesTool } from "./vision-image-properties";
+export { urlToBase64Tool } from "./url-to-base64";

@@ -6,7 +6,11 @@ import {
   createResumableStreamMemoryStore,
   createResumableStreamRedisStore,
 } from "@voltagent/resumable-streams";
-import { creativeFanoutWorkflow, creativeFanoutV2Workflow, imageEditingWorkflow } from "./workflows";
+import {
+  creativeFanoutWorkflow,
+  creativeFanoutV2Workflow,
+  imageEditingWorkflow,
+} from "./workflows";
 import {
   briefEnhancerAgent,
   creativeGeneratorAgent,
@@ -33,11 +37,13 @@ import {
   visionLogoAgent,
   visionImagePropertiesAgent,
 } from "./agents";
+import { sharedMemory } from "./memory";
 
 // Create logger (optional but recommended)
 const logger = createPinoLogger({
   name: "voltagent-backend",
-  level: "info",
+  level: "debug",
+  pretty: true,
 });
 
 // Resumable streaming (Redis-backed). Requires a reachable REDIS_URL in production.
@@ -50,7 +56,7 @@ const streamStore = await (async () => {
     const message = e instanceof Error ? e.message : String(e);
     logger.warn(
       "Resumable streams: Redis store unreachable, falling back to in-memory store (resume won't survive restarts).",
-      { err: message }
+      { err: message },
     );
     return await createResumableStreamMemoryStore();
   }
@@ -59,31 +65,13 @@ const resumableStream = await createResumableStreamAdapter({ streamStore });
 
 // Initialize VoltAgent with your agent(s)
 new VoltAgent({
+  agentMemory: sharedMemory, // Shared memory for all agents
   agents: {
-    briefEnhancerAgent,
-    creativeGeneratorAgent,
-    creativeGeneratorPerformanceAgent,
-    creativeGeneratorArtDirectorAgent,
-    creativeGeneratorPackshotAgent,
-    creativeGeneratorUgcAgent,
-    creativeGeneratorMinimalLuxuryAgent,
-    creativeGeneratorBoldTrendAgent,
-    complianceSupervisorAgent,
     allInOneSupervisorAgent,
     allInOneImageGeneratorAgent,
     allInOneImageEditorAgent,
     allInOneHiveModerationAgent,
     allInOneOcrAgent,
-    imageToTextAgent,
-    hiveRiskAgent,
-    historicalComplianceAgent,
-    tavilySearchAgent,
-    claimsCheckAgent,
-    platformPolicyAgent,
-    accessibilityAgent,
-    visionTextAgent,
-    visionLogoAgent,
-    visionImagePropertiesAgent,
   },
   workflows: {
     creativeFanoutWorkflow,
@@ -91,9 +79,9 @@ new VoltAgent({
     imageEditingWorkflow,
   },
   server: honoServer({
-    
     resumableStream: {
       adapter: resumableStream,
+
       defaultEnabled: true,
     },
   }),

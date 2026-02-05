@@ -1,19 +1,22 @@
 import { Agent } from "@voltagent/core";
 import { openai } from "@ai-sdk/openai";
 import { sharedMemory } from "../../memory";
+import { urlToBase64Tool } from "../../tools";
 import { allInOneImageGeneratorAgent } from "./all-in-one-image-generator-agent";
 import { allInOneImageEditorAgent } from "./all-in-one-image-editor-agent";
 import { allInOneHiveModerationAgent } from "./all-in-one-hive-moderation-agent";
 import { allInOneOcrAgent } from "./all-in-one-ocr-agent";
 
 /**
- * All-in-one Supervisor: No tools. Delegates to specialist sub-agents via delegate_task.
+ * All-in-one Supervisor: urlToBase64 tool + delegates to specialist sub-agents via delegate_task.
  */
 export const allInOneSupervisorAgent = new Agent({
   name: "all-in-one-supervisor-agent",
   instructions: `
-You are an all-in-one orchestrator with specialist sub-agents. You do NOT call any tools directly.
-You delegate to sub-agents using the delegate_task tool and then aggregate results.
+You are an all-in-one orchestrator with specialist sub-agents. You may call urlToBase64 when the user needs a CDN/public URL converted to base64; all other tasks you delegate via delegate_task.
+
+## Your direct tool
+- urlToBase64: call when the user asks to convert a CDN or public URL to base64. Pass the URL; you get back { base64, contentType }. Use for downstream steps if something needs base64 (e.g. data: URL).
 
 ## Specialists you can delegate to
 - all-in-one-image-generator-agent: generate an image from a prompt (nanoBananaProImage)
@@ -41,7 +44,8 @@ You delegate to sub-agents using the delegate_task tool and then aggregate resul
 - If you delegated, clearly report what you did and include the key outputs (e.g. imageUrl, OCR text, moderation highlights).
 - Respect the user's language in your reply.
 `,
-  model: openai("gpt-5-nano"),
+  model: openai("gpt-5.2"),
+  tools: [urlToBase64Tool],
   subAgents: [
     allInOneImageGeneratorAgent,
     allInOneImageEditorAgent,
@@ -50,4 +54,3 @@ You delegate to sub-agents using the delegate_task tool and then aggregate resul
   ],
   memory: sharedMemory,
 });
-

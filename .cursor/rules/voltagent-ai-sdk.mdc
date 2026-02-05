@@ -1,0 +1,16 @@
+---
+description: VoltAgent uses Vercel AI SDK under the hood; agent streams and outputs are AI SDK–compatible.
+alwaysApply: true
+---
+
+# VoltAgent & Vercel AI SDK
+
+**VoltAgent’s agent outputs (streams, messages, tool calls, etc.) are compatible with the Vercel AI SDK.** VoltAgent uses and re-exports the AI SDK under the hood.
+
+When working in this repo:
+
+- **Stream format**: VoltAgent `/agents/:id/stream` and `/agents/:id/chat` emit the same event types and shapes you’d get from AI SDK `streamText` / `toUIMessageStreamResponse` (e.g. `text-delta`, `tool-call`, `tool-result`, `reasoning`, `sources`, `start`, `finish`).
+- **Options**: Use AI SDK–style options when calling VoltAgent (e.g. `sendSources: true`, `sendReasoning: true` in request `options`) so the stream includes reasoning and sources when the runtime supports it.
+- **Clients**: You can consume VoltAgent streams with the same parsing or hooks you’d use for the AI SDK (e.g. `useChat`, custom SSE parsing for UI message format). Types and event payloads align with `ai` package exports.
+
+Do not treat VoltAgent as a custom protocol; assume AI SDK compatibility for streams, message parts, and tool invocations.

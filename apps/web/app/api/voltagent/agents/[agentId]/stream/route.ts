@@ -166,6 +166,8 @@ export async function POST(
         ...(existingOptions ?? {}),
         userId: user.id,
         ...(conversationId ? { conversationId } : {}),
+        sendSources: true,
+        sendReasoning: true,
       },
     };
 

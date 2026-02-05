@@ -1,17 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
+import ChatExample from "./ChatExample";
 
-export default async function DashboardPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export default function DashboardPage() {
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-semibold tracking-tight">Dashboard</h2>
-      <p className="text-muted-foreground">
-        Welcome back{user?.email ? `, ${user.email}` : ""}.
-      </p>
+    <div className="flex h-[calc(100vh-8rem)] flex-col overflow-hidden">
+      <ChatExample />
     </div>
   );
 }
